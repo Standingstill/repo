@@ -1,0 +1,67 @@
+﻿spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:ensureback;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.h2.Driver}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  h2:
+    console:
+      enabled: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  sql:
+    init:
+      mode: never
+
+server:
+  port: 8080
+
+jwt:
+  secret: ${JWT_SECRET:dev-jwt-secret}
+  expiration: PT1H
+
+magic-link:
+  secret: ${MAGIC_LINK_SECRET:dev-magic-secret}
+  expiration: PT2H
+
+stripe:
+  secret-key: ${STRIPE_SECRET_KEY:}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+
+aftership:
+  api-key: ${AFTERSHIP_API_KEY:}
+  base-url: ${AFTERSHIP_BASE_URL:https://api.aftership.com/v4}
+
+ensureback:
+  dispute-window-default-hours: ${ENSUREBACK_DISPUTE_WINDOW_HOURS:120}
+  fee-bps: ${ENSUREBACK_FEE_BPS:49}
+  fixed-fee-cents: ${ENSUREBACK_FIXED_FEE_CENTS:19}
+  app-base-url: ${APP_BASE_URL:http://localhost:8080}
+  email:
+    enabled: ${ENSUREBACK_EMAIL_ENABLED:false}
+    from: ${ENSUREBACK_EMAIL_FROM:noreply@ensureback.test}
+---
+
+spring:
+  config:
+    activate:
+      on-profile: postgres
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ensureback}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USER:ensureback}
+    password: ${DB_PASSWORD:ensureback}
+  h2:
+    console:
+      enabled: false
+
+
+

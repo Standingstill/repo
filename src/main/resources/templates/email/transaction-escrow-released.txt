@@ -1,0 +1,6 @@
+﻿Hello,
+
+Good news! Funds for order {{orderNumber}} have been released from escrow.
+Please allow standard settlement time to receive the transfer.
+
+– EnsureBack Finance

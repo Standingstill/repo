@@ -1,0 +1,8 @@
+﻿Hello,
+
+You have a new EnsureBack notification:
+{{payload}}
+
+Visit the dashboard for details.
+
+– EnsureBack Platform

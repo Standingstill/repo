@@ -1,0 +1,8 @@
+﻿Hello,
+
+There is an update on dispute {{disputeId}} for order {{orderId}}.
+Summary: {{summary}}
+
+See the portal for full context and next actions.
+
+– EnsureBack Disputes

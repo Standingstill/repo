@@ -1,0 +1,8 @@
+﻿Hello,
+
+A decision has been recorded for dispute {{disputeId}} on order {{orderId}}.
+Outcome: {{outcome}}
+
+Review the resolution details in your dashboard.
+
+– EnsureBack Resolution Desk

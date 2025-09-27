@@ -1,0 +1,6 @@
+﻿Team,
+
+A new order {{orderId}} was just confirmed.
+Please review fulfillment details in the merchant portal.
+
+– EnsureBack Ops

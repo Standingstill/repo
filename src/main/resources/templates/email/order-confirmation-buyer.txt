@@ -1,0 +1,6 @@
+﻿Hello {{buyerEmail}},
+
+Thank you for your purchase! Your order {{orderId}} is confirmed.
+We will notify you when it ships.
+
+– The EnsureBack Team

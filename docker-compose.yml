@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: ensureback-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ensureback
+      POSTGRES_USER: ensureback
+      POSTGRES_PASSWORD: ensureback
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:

@@ -1,0 +1,6 @@
+﻿Admin Notice,
+
+Order {{orderId}} has been logged and confirmed.
+Monitor the dispute window and fulfillment steps as needed.
+
+– EnsureBack Platform

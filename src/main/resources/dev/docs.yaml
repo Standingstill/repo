@@ -1,0 +1,25 @@
+﻿openapi: 3.1.0
+defaults:
+  info:
+    title: EnsureBack API
+    version: 0.1.0
+paths:
+  /dev/status/{merchantId}:
+    get:
+      summary: Get integration checklist
+      parameters:
+        - name: merchantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Integration checklist
+  /dev/register-keys:
+    post:
+      summary: Generate API key for merchant
+      responses:
+        '201':
+          description: API key created

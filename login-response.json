@@ -1,0 +1,6 @@
+{
+    "accessToken":  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJlbnN1cmViYWNrLWFwaSIsInN1YiI6IjMzODQ2YTQ5LWFkNTItNDA4OC1hNTA1LWYwNTAzZmI0NDIyMyIsImVtYWlsIjoiZGVtb0BlbnN1cmViYWNrLnRlc3QiLCJyb2xlIjoiTUVSQ0hBTlQiLCJleHAiOjE3NTg3NjQwMDR9.VCOF89C8g2TM0M0hMJE6hTBU8WztMsxcZufzmh_lr4M",
+    "tokenType":  "Bearer",
+    "expiresAt":  "2025-09-25T01:33:24.918923Z",
+    "role":  "MERCHANT"
+}

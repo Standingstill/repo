@@ -1,0 +1,6 @@
+﻿Hello,
+
+Dispute {{disputeId}} for order {{orderId}} has been escalated.
+Our team will review all evidence and follow up shortly.
+
+– EnsureBack Resolution Desk

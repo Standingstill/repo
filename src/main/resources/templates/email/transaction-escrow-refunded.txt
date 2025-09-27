@@ -1,0 +1,6 @@
+﻿Hello,
+
+A refund was processed for order {{orderNumber}}.
+The customer has been notified and funds will settle shortly.
+
+– EnsureBack Finance

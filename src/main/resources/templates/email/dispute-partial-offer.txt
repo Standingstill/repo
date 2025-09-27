@@ -1,0 +1,8 @@
+﻿Hello,
+
+A partial refund offer has been posted for dispute {{disputeId}} on order {{orderId}}.
+Offer amount: {{amount}}
+
+Review the offer and respond before the deadline.
+
+– EnsureBack Disputes

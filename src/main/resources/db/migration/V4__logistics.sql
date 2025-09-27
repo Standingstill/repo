@@ -1,0 +1,24 @@
+CREATE TABLE shipments (
+    id UUID PRIMARY KEY,
+    order_id UUID NOT NULL REFERENCES orders(id),
+    carrier_code VARCHAR(64) NOT NULL,
+    tracking_number VARCHAR(128) NOT NULL,
+    aftership_id VARCHAR(255),
+    status VARCHAR(32) NOT NULL,
+    raw JSONB NOT NULL DEFAULT '{}'::jsonb,
+    delivered_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT shipments_status_check CHECK (status IN ('CREATED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'EXCEPTION'))
+);
+
+CREATE TABLE timers (
+    id UUID PRIMARY KEY,
+    order_id UUID NOT NULL REFERENCES orders(id),
+    type VARCHAR(32) NOT NULL,
+    starts_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    state VARCHAR(24) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT timers_type_check CHECK (type IN ('DISPUTE_WINDOW', 'RETURN_WINDOW', 'SELLER_REVIEW_WINDOW')),
+    CONSTRAINT timers_state_check CHECK (state IN ('SCHEDULED', 'FIRED', 'CANCELLED'))
+);
