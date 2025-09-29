@@ -1,5 +1,5 @@
-import { FormEvent, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 
 import { Button } from '@/components/ui/button';
@@ -9,9 +9,28 @@ import { useAuth } from '@/hooks/useAuth';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isLoggingIn, loginError, login } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const {
+    isAuthenticated,
+    isInitiating,
+    isCompleting,
+    initiateError,
+    completeError,
+    initiateConnect,
+    completeConnect,
+  } = useAuth();
   const [email, setEmail] = useState('demo@ensureback.test');
-  const [password, setPassword] = useState('demo-password-hash');
+  const [callbackHandled, setCallbackHandled] = useState(false);
+
+  const callbackParams = useMemo(
+    () => ({
+      code: searchParams.get('code') ?? undefined,
+      state: searchParams.get('state') ?? undefined,
+      error: searchParams.get('error') ?? undefined,
+      errorDescription: searchParams.get('error_description') ?? undefined,
+    }),
+    [searchParams]
+  );
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
@@ -20,20 +39,46 @@ const Login = () => {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     try {
-      await login({ email, password });
-      navigate('/dashboard');
+      const response = await initiateConnect({ email });
+      window.location.href = response.authorizationUrl;
     } catch (error) {
       console.error('Login failed', error);
     }
   };
 
+  useEffect(() => {
+    if (!callbackParams.state || callbackHandled) {
+      return;
+    }
+
+    setCallbackHandled(true);
+
+    const executeCallback = async () => {
+      try {
+        await completeConnect({
+          state: callbackParams.state!,
+          code: callbackParams.code,
+          error: callbackParams.error,
+          errorDescription: callbackParams.errorDescription,
+        });
+        setSearchParams({}, { replace: true });
+        navigate('/dashboard');
+      } catch (error) {
+        console.error('Stripe Connect callback failed', error);
+      }
+    };
+
+    void executeCallback();
+  }, [callbackHandled, callbackParams, completeConnect, navigate, setSearchParams]);
+
   const renderError = () => {
-    if (!loginError) {
+    const error = completeError ?? initiateError;
+    if (!error) {
       return null;
     }
 
-    if (isAxiosError(loginError)) {
-      const message = loginError.response?.data?.message ?? 'Invalid credentials';
+    if (isAxiosError(error)) {
+      const message = error.response?.data?.message ?? 'Unable to authenticate with Stripe Connect';
       return <p className="rounded-md bg-red-100 px-3 py-2 text-sm font-medium text-red-700">{message}</p>;
     }
 
@@ -64,29 +109,25 @@ const Login = () => {
                 onChange={(event) => setEmail(event.target.value)}
                 required
                 autoComplete="email"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium">
-                Password
-              </label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-                autoComplete="current-password"
+                disabled={isInitiating || isCompleting}
               />
             </div>
 
             {renderError()}
 
-            <Button type="submit" className="w-full" disabled={isLoggingIn}>
-              {isLoggingIn ? 'Signing in…' : 'Sign in'}
+            <Button type="submit" className="w-full" disabled={isInitiating || isCompleting}>
+              {isCompleting
+                ? 'Finalizing Stripe login…'
+                : isInitiating
+                ? 'Redirecting to Stripe…'
+                : 'Sign in with Stripe Connect'}
             </Button>
           </form>
+          {isCompleting && (
+            <p className="mt-4 text-center text-sm text-muted-foreground">
+              Returning from Stripe. Please wait while we verify your account…
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>
