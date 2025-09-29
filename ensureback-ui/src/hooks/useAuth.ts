@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { login as loginRequest, logout as logoutRequest, LoginRequest, LoginResponse } from '../api/auth';
+import {
+  completeStripeConnect,
+  LoginResponse,
+  logout as logoutRequest,
+  startStripeConnect,
+  StripeConnectCallbackRequest,
+  StripeConnectStartRequest,
+  StripeConnectStartResponse,
+} from '../api/auth';
 import { TOKEN_STORAGE_KEY } from '../api/axiosClient';
 
 const getInitialToken = (): string | null => {
@@ -14,9 +22,12 @@ const getInitialToken = (): string | null => {
 interface UseAuthResult {
   token: string | null;
   isAuthenticated: boolean;
-  isLoggingIn: boolean;
-  loginError: unknown;
-  login: (credentials: LoginRequest) => Promise<LoginResponse>;
+  isInitiating: boolean;
+  isCompleting: boolean;
+  initiateError: unknown;
+  completeError: unknown;
+  initiateConnect: (payload: StripeConnectStartRequest) => Promise<StripeConnectStartResponse>;
+  completeConnect: (payload: StripeConnectCallbackRequest) => Promise<LoginResponse>;
   logout: () => void;
 }
 
@@ -35,8 +46,12 @@ export const useAuth = (): UseAuthResult => {
     return () => window.removeEventListener('storage', handler);
   }, []);
 
-  const loginMutation = useMutation({
-    mutationFn: (credentials: LoginRequest) => loginRequest(credentials),
+  const initiateMutation = useMutation({
+    mutationFn: (payload: StripeConnectStartRequest) => startStripeConnect(payload),
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: (payload: StripeConnectCallbackRequest) => completeStripeConnect(payload),
     onSuccess: (data) => {
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(TOKEN_STORAGE_KEY, data.accessToken);
@@ -51,20 +66,37 @@ export const useAuth = (): UseAuthResult => {
     queryClient.clear();
   }, [queryClient]);
 
-  const login = useCallback(
-    (credentials: LoginRequest) => loginMutation.mutateAsync(credentials),
-    [loginMutation]
+  const initiateConnect = useCallback(
+    (payload: StripeConnectStartRequest) => initiateMutation.mutateAsync(payload),
+    [initiateMutation]
+  );
+
+  const completeConnect = useCallback(
+    (payload: StripeConnectCallbackRequest) => completeMutation.mutateAsync(payload),
+    [completeMutation]
   );
 
   return useMemo(
     () => ({
       token,
       isAuthenticated: Boolean(token),
-      isLoggingIn: loginMutation.isPending,
-      loginError: loginMutation.error,
-      login,
+      isInitiating: initiateMutation.isPending,
+      isCompleting: completeMutation.isPending,
+      initiateError: initiateMutation.error,
+      completeError: completeMutation.error,
+      initiateConnect,
+      completeConnect,
       logout,
     }),
-    [login, loginMutation.error, loginMutation.isPending, logout, token]
+    [
+      completeConnect,
+      completeMutation.error,
+      completeMutation.isPending,
+      initiateConnect,
+      initiateMutation.error,
+      initiateMutation.isPending,
+      logout,
+      token,
+    ]
   );
 };

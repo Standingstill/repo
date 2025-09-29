@@ -35,6 +35,8 @@ magic-link:
 stripe:
   secret-key: ${STRIPE_SECRET_KEY:}
   webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+  connect-client-id: ${STRIPE_CONNECT_CLIENT_ID:}
+  connect-redirect-uri: ${STRIPE_CONNECT_REDIRECT_URI:http://localhost:5173/login}
 
 aftership:
   api-key: ${AFTERSHIP_API_KEY:}

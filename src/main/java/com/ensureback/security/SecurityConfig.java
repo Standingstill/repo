@@ -42,7 +42,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/health", "/api/auth/login", "/api/buyer/magic-link/**", "/ws/**", "/dev/docs").permitAll()
+                        .requestMatchers("/health", "/api/auth/connect/**", "/api/buyer/magic-link/**", "/ws/**", "/dev/docs").permitAll()
                         .requestMatchers(HttpMethod.POST, "/dev/register-keys").authenticated()
                         .anyRequest().authenticated()
                 )

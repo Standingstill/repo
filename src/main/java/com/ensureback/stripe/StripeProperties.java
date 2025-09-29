@@ -7,10 +7,17 @@ public class StripeProperties {
 
     private final String secretKey;
     private final String webhookSecret;
+    private final String connectClientId;
+    private final String connectRedirectUri;
 
-    public StripeProperties(String secretKey, String webhookSecret) {
+    public StripeProperties(String secretKey,
+                            String webhookSecret,
+                            String connectClientId,
+                            String connectRedirectUri) {
         this.secretKey = secretKey;
         this.webhookSecret = webhookSecret;
+        this.connectClientId = connectClientId;
+        this.connectRedirectUri = connectRedirectUri;
     }
 
     public String getSecretKey() {
@@ -19,5 +26,13 @@ public class StripeProperties {
 
     public String getWebhookSecret() {
         return webhookSecret;
+    }
+
+    public String getConnectClientId() {
+        return connectClientId;
+    }
+
+    public String getConnectRedirectUri() {
+        return connectRedirectUri;
     }
 }

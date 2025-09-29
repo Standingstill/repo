@@ -1,10 +1,5 @@
 import axiosClient, { TOKEN_STORAGE_KEY } from './axiosClient';
 
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
 export interface LoginResponse {
   accessToken: string;
   tokenType: string;
@@ -12,8 +7,32 @@ export interface LoginResponse {
   role: string;
 }
 
-export const login = async (payload: LoginRequest): Promise<LoginResponse> => {
-  const response = await axiosClient.post<LoginResponse>('/auth/login', payload);
+export interface StripeConnectStartRequest {
+  email: string;
+}
+
+export interface StripeConnectStartResponse {
+  authorizationUrl: string;
+}
+
+export interface StripeConnectCallbackRequest {
+  state: string;
+  code?: string;
+  error?: string;
+  errorDescription?: string;
+}
+
+export const startStripeConnect = async (
+  payload: StripeConnectStartRequest
+): Promise<StripeConnectStartResponse> => {
+  const response = await axiosClient.post<StripeConnectStartResponse>('/auth/connect/start', payload);
+  return response.data;
+};
+
+export const completeStripeConnect = async (
+  payload: StripeConnectCallbackRequest
+): Promise<LoginResponse> => {
+  const response = await axiosClient.post<LoginResponse>('/auth/connect/callback', payload);
   return response.data;
 };
 

@@ -1,38 +1,37 @@
 package com.ensureback.auth;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.ensureback.auth.dto.LoginRequest;
 import com.ensureback.auth.dto.LoginResponse;
-import com.ensureback.security.EnsurebackUserDetails;
-import com.ensureback.security.JwtTokenService;
+import com.ensureback.auth.dto.StripeConnectCallbackRequest;
+import com.ensureback.auth.dto.StripeConnectStartRequest;
+import com.ensureback.auth.dto.StripeConnectStartResponse;
+import com.stripe.exception.StripeException;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final AuthenticationManager authenticationManager;
-    private final JwtTokenService jwtTokenService;
+    private final StripeConnectService stripeConnectService;
 
-    public AuthController(AuthenticationManager authenticationManager, JwtTokenService jwtTokenService) {
-        this.authenticationManager = authenticationManager;
-        this.jwtTokenService = jwtTokenService;
+    public AuthController(StripeConnectService stripeConnectService) {
+        this.stripeConnectService = stripeConnectService;
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@Validated @RequestBody LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email(), request.password()));
-        EnsurebackUserDetails principal = (EnsurebackUserDetails) authentication.getPrincipal();
-        var token = jwtTokenService.createToken(principal.getUser());
-        return ResponseEntity.ok(new LoginResponse(token.value(), "Bearer", token.expiresAt(), principal.getUser().getRole().name()));
+    @PostMapping("/connect/start")
+    public ResponseEntity<StripeConnectStartResponse> start(@Validated @RequestBody StripeConnectStartRequest request) {
+        StripeConnectStartResponse response = stripeConnectService.start(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/connect/callback")
+    public ResponseEntity<LoginResponse> callback(@Validated @RequestBody StripeConnectCallbackRequest request) throws StripeException {
+        LoginResponse response = stripeConnectService.complete(request);
+        return ResponseEntity.ok(response);
     }
 }
