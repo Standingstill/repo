@@ -78,7 +78,9 @@ const Login = () => {
     }
 
     if (isAxiosError(error)) {
-      const message = error.response?.data?.message ?? 'Unable to authenticate with Stripe Connect';
+      const data = error.response?.data;
+      const message =
+        data?.detail ?? data?.title ?? data?.message ?? 'Unable to authenticate with Stripe Connect';
       return <p className="rounded-md bg-red-100 px-3 py-2 text-sm font-medium text-red-700">{message}</p>;
     }
 
