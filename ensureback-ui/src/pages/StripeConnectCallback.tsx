@@ -37,14 +37,28 @@ const StripeConnectCallback = () => {
           },
         });
 
-        const rawMessage = response.data?.message;
+        const responseData = (response.data ?? {}) as Record<string, unknown>;
+        const directToken = typeof responseData.accessToken === 'string' ? responseData.accessToken : null;
+        const legacyToken = typeof responseData.token === 'string' ? responseData.token : null;
+        const nestedLogin =
+          responseData.login && typeof responseData.login === 'object'
+            ? (responseData.login as Record<string, unknown>)
+            : null;
+        const nestedToken = nestedLogin && typeof nestedLogin.accessToken === 'string' ? nestedLogin.accessToken : null;
+        const sessionToken = directToken ?? legacyToken ?? nestedToken;
+
+        if (sessionToken) {
+          setSessionFromToken(sessionToken);
+        }
+
+        const rawMessage = responseData.message;
         if (typeof rawMessage === 'string' && rawMessage.trim().length > 0) {
           setStatusMessage(rawMessage);
         } else {
           setStatusMessage('Verifying your account details...');
         }
 
-        const redirectHint: unknown = response.data?.redirectUrl;
+        const redirectHint: unknown = responseData.redirectUrl;
         let cleanedRedirect: string | null = null;
 
         if (typeof redirectHint === 'string' && redirectHint.trim().length > 0) {

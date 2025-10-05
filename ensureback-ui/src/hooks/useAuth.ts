@@ -3,7 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 
 import { clearSession } from '../api/auth';
-import axiosClient, { TOKEN_STORAGE_KEY, clearStoredToken, persistToken, readStoredToken } from '../api/axiosClient';
+import axiosClient, {
+  TOKEN_STORAGE_KEY,
+  buildAuthorizationHeader,
+  clearStoredToken,
+  persistToken,
+  readStoredToken,
+} from '../api/axiosClient';
 
 interface SessionState {
   token: string;
@@ -228,7 +234,10 @@ export const useAuth = (): UseAuthResult => {
       setMerchantStatusError(null);
 
       try {
-        const response = await axiosClient.get<MerchantStatusResponse>('/merchant/status');
+        const authorization = buildAuthorizationHeader(currentSession.token);
+        const response = await axiosClient.get<MerchantStatusResponse>('/merchant/status', {
+          headers: authorization ? { Authorization: authorization } : undefined,
+        });
         manualMerchantStatusRef.current = false;
         setMerchantStatus(response.data);
         setMerchantStatusError(null);
