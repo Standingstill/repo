@@ -1,5 +1,6 @@
 ﻿import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ArrowUpRight, Clock, ShieldCheck, Zap } from 'lucide-react';
@@ -63,7 +64,23 @@ const getRecentCases = (disputes: MerchantDispute[]) =>
 
 const MerchantOverview = () => {
   const profileQuery = useQuery({ queryKey: ['merchant', 'profile'], queryFn: fetchMerchantProfile });
-  const statusQuery = useQuery({ queryKey: ['merchant', 'status'], queryFn: fetchMerchantStatus });
+  const statusQuery = useQuery({
+    queryKey: ['merchant', 'status'],
+    queryFn: fetchMerchantStatus,
+    retry: (failureCount, error) => {
+      if (isAxiosError(error)) {
+        const status = error.response?.status;
+        if (status === 401 || status === 403) {
+          return false;
+        }
+        if (!error.response) {
+          return false;
+        }
+      }
+      return failureCount < 3;
+    },
+    refetchOnWindowFocus: false,
+  });
   const navigate = useNavigate();
 
   const ordersQuery = useQuery({ queryKey: ['merchant', 'orders'], queryFn: fetchOrders });

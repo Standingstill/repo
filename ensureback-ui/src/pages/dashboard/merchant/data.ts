@@ -1,4 +1,6 @@
-﻿import axiosClient from '@/api/axiosClient';
+﻿import { isAxiosError } from 'axios';
+
+import axiosClient from '@/api/axiosClient';
 
 export interface MerchantProfile {
   id: string;
@@ -56,8 +58,15 @@ export const fetchMerchantProfile = async (): Promise<MerchantProfile> => {
 };
 
 export const fetchMerchantStatus = async (): Promise<MerchantStatus> => {
-  const response = await axiosClient.get<MerchantStatus>('/merchant/status');
-  return response.data;
+  try {
+    const response = await axiosClient.get<MerchantStatus>('/merchant/status');
+    return response.data;
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404) {
+      return { isIntegrated: false, stripeAccountId: null };
+    }
+    throw error;
+  }
 };
 
 export const fetchOrders = async (): Promise<MerchantOrder[]> => {

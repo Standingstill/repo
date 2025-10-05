@@ -243,6 +243,17 @@ export const useAuth = (): UseAuthResult => {
         setMerchantStatusError(null);
         return response.data;
       } catch (error) {
+        if (isAxiosError(error) && error.response?.status === 404) {
+          const fallbackStatus: MerchantStatusResponse = {
+            isIntegrated: false,
+            stripeAccountId: currentSession.stripeAccountId || null,
+          };
+          manualMerchantStatusRef.current = false;
+          setMerchantStatus(fallbackStatus);
+          setMerchantStatusError(null);
+          return fallbackStatus;
+        }
+
         console.error('Unable to load merchant status', error);
         manualMerchantStatusRef.current = true;
 
@@ -251,7 +262,10 @@ export const useAuth = (): UseAuthResult => {
           if (status === 401 || status === 403) {
             setMerchantStatusError({ message: 'Session expired, please reconnect Stripe.', status, type: 'auth' });
           } else if (!error.response) {
-            setMerchantStatusError({ message: 'We are having trouble reaching EnsureBack. Check your connection and try again.', type: 'network' });
+            setMerchantStatusError({
+              message: 'We are having trouble reaching EnsureBack. Check your connection and try again.',
+              type: 'network',
+            });
           } else {
             setMerchantStatusError({ message: 'Unable to load merchant status. Please try again later.', status, type: 'unknown' });
           }

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -13,6 +13,7 @@ const StripeConnectCallback = () => {
   const { refreshMerchantStatus, setSessionFromToken } = useAuth();
   const [statusMessage, setStatusMessage] = useState('Finalizing your Stripe connection...');
   const [showRetry, setShowRetry] = useState(false);
+  const hasFinalizedRef = useRef(false);
 
   const searchParams = useMemo(() => {
     const params = new URLSearchParams(location.search ?? window.location.search ?? '');
@@ -25,6 +26,12 @@ const StripeConnectCallback = () => {
       setShowRetry(true);
       return;
     }
+
+    if (hasFinalizedRef.current) {
+      return;
+    }
+
+    hasFinalizedRef.current = true;
 
     const finalize = async () => {
       setShowRetry(false);
@@ -132,6 +139,7 @@ const StripeConnectCallback = () => {
           setStatusMessage('Unable to finalize Stripe Connect login. Please try again.');
         }
         setShowRetry(true);
+        hasFinalizedRef.current = false;
       }
     };
 
