@@ -27,12 +27,12 @@ public class EnsurebackUserDetails implements UserDetails {
 
     @Override
     public String getPassword() {
-        return user.getPasswordHash();
+        return "STRIPE_CONNECT";
     }
 
     @Override
     public String getUsername() {
-        return user.getEmail();
+        return user.getStripeAccountId();
     }
 
     @Override

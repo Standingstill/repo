@@ -1,22 +1,20 @@
 package com.ensureback.security;
 
-import java.time.Instant;
-import java.util.Date;
-import java.util.UUID;
-
-import org.springframework.stereotype.Component;
-
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.auth0.jwt.interfaces.JWTVerifier;
 import com.ensureback.user.User;
+import java.time.Instant;
+import java.util.Date;
+import java.util.UUID;
+import org.springframework.stereotype.Component;
 
 @Component
 public class JwtTokenService {
 
-    private static final String CLAIM_EMAIL = "email";
+    private static final String CLAIM_STRIPE_ACCOUNT_ID = "stripe_account_id";
     private static final String CLAIM_ROLE = "role";
 
     private final Algorithm algorithm;
@@ -34,7 +32,7 @@ public class JwtTokenService {
         String token = JWT.create()
                 .withIssuer("ensureback-api")
                 .withSubject(user.getId().toString())
-                .withClaim(CLAIM_EMAIL, user.getEmail())
+                .withClaim(CLAIM_STRIPE_ACCOUNT_ID, user.getStripeAccountId())
                 .withClaim(CLAIM_ROLE, user.getRole().name())
                 .withExpiresAt(Date.from(expiresAt))
                 .sign(algorithm);
@@ -48,13 +46,13 @@ public class JwtTokenService {
     public record Token(String value, Instant expiresAt) {
     }
 
-    public record JwtPayload(UUID userId, String email, String role) {
+    public record JwtPayload(UUID userId, String stripeAccountId, String role) {
     }
 
     public JwtPayload toPayload(DecodedJWT jwt) {
         UUID userId = UUID.fromString(jwt.getSubject());
-        String email = jwt.getClaim(CLAIM_EMAIL).asString();
+        String stripeAccountId = jwt.getClaim(CLAIM_STRIPE_ACCOUNT_ID).asString();
         String role = jwt.getClaim(CLAIM_ROLE).asString();
-        return new JwtPayload(userId, email, role);
+        return new JwtPayload(userId, stripeAccountId, role);
     }
 }

@@ -1,10 +1,8 @@
 package com.ensureback.developer;
 
-import com.ensureback.user.User;
+import com.ensureback.merchant.Merchant;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -18,25 +16,19 @@ import java.util.UUID;
 @Table(name = "api_keys")
 public class ApiKey {
 
-    public enum Status {
-        ACTIVE,
-        REVOKED
-    }
-
     @Id
     @Column(name = "id", nullable = false)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "merchant_id", nullable = false)
-    private User merchantUser;
+    private Merchant merchant;
 
     @Column(name = "key_hash", nullable = false, length = 255)
     private String keyHash;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
-    private Status status;
+    @Column(name = "revoked", nullable = false)
+    private boolean revoked;
 
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
@@ -60,12 +52,12 @@ public class ApiKey {
         this.id = id;
     }
 
-    public User getMerchantUser() {
-        return merchantUser;
+    public Merchant getMerchant() {
+        return merchant;
     }
 
-    public void setMerchantUser(User merchantUser) {
-        this.merchantUser = merchantUser;
+    public void setMerchant(Merchant merchant) {
+        this.merchant = merchant;
     }
 
     public String getKeyHash() {
@@ -76,12 +68,12 @@ public class ApiKey {
         this.keyHash = keyHash;
     }
 
-    public Status getStatus() {
-        return status;
+    public boolean isRevoked() {
+        return revoked;
     }
 
-    public void setStatus(Status status) {
-        this.status = status;
+    public void setRevoked(boolean revoked) {
+        this.revoked = revoked;
     }
 
     public OffsetDateTime getCreatedAt() {

@@ -7,7 +7,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ApiKeyRepository extends JpaRepository<ApiKey, UUID> {
 
-    List<ApiKey> findByMerchantUser_Id(UUID userId);
+    List<ApiKey> findByMerchant_Id(UUID merchantId);
 
-    Optional<ApiKey> findByIdAndMerchantUser_Id(UUID apiKeyId, UUID userId);
+    List<ApiKey> findByMerchant_IdAndRevokedFalse(UUID merchantId);
+
+    Optional<ApiKey> findByIdAndMerchant_Id(UUID apiKeyId, UUID merchantId);
 }

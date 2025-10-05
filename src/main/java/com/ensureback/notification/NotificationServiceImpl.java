@@ -176,7 +176,6 @@ public class NotificationServiceImpl implements NotificationService {
             case "dispute.partial_refund" -> "Partial refund offer";
             case "dispute.escalated" -> "Dispute escalated";
             case "dispute.decision" -> "Dispute decision";
-            case "magic.link" -> "Access your EnsureBack order";
             case "transaction.escrow.released" -> "Escrow released";
             case "transaction.escrow.refunded" -> "Escrow refunded";
             default -> "EnsureBack notification";
@@ -192,7 +191,6 @@ public class NotificationServiceImpl implements NotificationService {
             case "dispute.partial_refund" -> "dispute-partial-offer";
             case "dispute.escalated" -> "dispute-escalation";
             case "dispute.decision" -> "dispute-decision";
-            case "magic.link" -> "magic-link";
             case "transaction.escrow.released" -> "transaction-escrow-released";
             case "transaction.escrow.refunded" -> "transaction-escrow-refunded";
             default -> "notification-default";

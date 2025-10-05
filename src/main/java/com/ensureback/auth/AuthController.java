@@ -1,37 +1,25 @@
 package com.ensureback.auth;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.ensureback.auth.dto.LoginResponse;
-import com.ensureback.auth.dto.StripeConnectCallbackRequest;
-import com.ensureback.auth.dto.StripeConnectStartRequest;
-import com.ensureback.auth.dto.StripeConnectStartResponse;
-import com.stripe.exception.StripeException;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/auth/stripe")
+@Deprecated
 public class AuthController {
 
-    private final StripeConnectService stripeConnectService;
-
-    public AuthController(StripeConnectService stripeConnectService) {
-        this.stripeConnectService = stripeConnectService;
+    @PostMapping("/start")
+    public ResponseEntity<Void> start(@RequestBody(required = false) Object ignored) {
+        throw new ResponseStatusException(HttpStatus.GONE, "Use /api/stripe/onboard instead");
     }
 
-    @PostMapping("/connect/start")
-    public ResponseEntity<StripeConnectStartResponse> start(@Validated @RequestBody StripeConnectStartRequest request) {
-        StripeConnectStartResponse response = stripeConnectService.start(request);
-        return ResponseEntity.ok(response);
-    }
-
-    @PostMapping("/connect/callback")
-    public ResponseEntity<LoginResponse> callback(@Validated @RequestBody StripeConnectCallbackRequest request) throws StripeException {
-        LoginResponse response = stripeConnectService.complete(request);
-        return ResponseEntity.ok(response);
+    @PostMapping("/callback")
+    public ResponseEntity<Void> callback(@RequestBody Object ignored) {
+        throw new ResponseStatusException(HttpStatus.GONE, "Use /api/stripe/callback instead");
     }
 }

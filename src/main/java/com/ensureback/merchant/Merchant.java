@@ -1,4 +1,4 @@
-package com.ensureback.merchant;
+﻿package com.ensureback.merchant;
 
 import com.ensureback.developer.IntegrationChecklist;
 import com.ensureback.user.User;
@@ -30,6 +30,12 @@ public class Merchant {
 
     @Column(name = "support_email", nullable = false)
     private String supportEmail;
+
+    @Column(name = "stripe_account_id", length = 255)
+    private String stripeAccountId;
+
+    @Column(name = "is_integrated", nullable = false)
+    private boolean integrated = false;
 
     @Column(name = "dispute_window_hours")
     private Integer disputeWindowHours;
@@ -81,6 +87,22 @@ public class Merchant {
 
     public void setSupportEmail(String supportEmail) {
         this.supportEmail = supportEmail;
+    }
+
+    public String getStripeAccountId() {
+        return stripeAccountId;
+    }
+
+    public void setStripeAccountId(String stripeAccountId) {
+        this.stripeAccountId = stripeAccountId;
+    }
+
+    public boolean isIntegrated() {
+        return integrated;
+    }
+
+    public void setIntegrated(boolean integrated) {
+        this.integrated = integrated;
     }
 
     public Integer getDisputeWindowHours() {

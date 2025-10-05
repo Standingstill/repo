@@ -5,8 +5,7 @@ import java.util.UUID;
 
 public record ApiKeyDto(
         UUID id,
-        UUID merchantId,
-        String status,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        boolean revoked
 ) {
 }

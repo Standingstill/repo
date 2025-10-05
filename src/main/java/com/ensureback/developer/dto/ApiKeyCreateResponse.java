@@ -6,7 +6,6 @@ import java.util.UUID;
 public record ApiKeyCreateResponse(
         UUID id,
         String apiKey,
-        String status,
         OffsetDateTime createdAt
 ) {
 }

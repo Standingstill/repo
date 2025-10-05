@@ -14,4 +14,6 @@ public interface DisputeRepository extends JpaRepository<Dispute, UUID> {
     Optional<Dispute> findFirstByOrder_IdAndStatusOrderByCreatedAtDesc(UUID orderId, Dispute.Status status);
 
     List<Dispute> findByOrder_Merchant_Id(UUID merchantId);
+
+    List<Dispute> findByOrder_BuyerUser_Id(UUID buyerUserId);
 }

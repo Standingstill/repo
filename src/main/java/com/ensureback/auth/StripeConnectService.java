@@ -1,9 +1,6 @@
 package com.ensureback.auth;
 
-import com.ensureback.auth.dto.LoginResponse;
-import com.ensureback.auth.dto.StripeConnectCallbackRequest;
-import com.ensureback.auth.dto.StripeConnectStartRequest;
-import com.ensureback.auth.dto.StripeConnectStartResponse;
+import com.ensureback.config.EnsurebackProperties;
 import com.ensureback.security.JwtTokenService;
 import com.ensureback.stripe.StripeProperties;
 import com.ensureback.user.User;
@@ -27,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -35,35 +33,65 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class StripeConnectService {
 
     private static final Logger log = LoggerFactory.getLogger(StripeConnectService.class);
-    private static final Duration SESSION_TTL = Duration.ofMinutes(15);
+    private static final Duration SESSION_TTL = Duration.ofHours(24);
+    private static final String DASHBOARD_PATH = "/dashboard";
 
     private final StripeConnectSessionRepository sessionRepository;
     private final UserRepository userRepository;
     private final JwtTokenService jwtTokenService;
     private final StripeProperties stripeProperties;
+    private final EnsurebackProperties ensurebackProperties;
 
     public StripeConnectService(StripeConnectSessionRepository sessionRepository,
                                 UserRepository userRepository,
                                 JwtTokenService jwtTokenService,
-                                StripeProperties stripeProperties) {
+                                StripeProperties stripeProperties,
+                                EnsurebackProperties ensurebackProperties) {
         this.sessionRepository = sessionRepository;
         this.userRepository = userRepository;
         this.jwtTokenService = jwtTokenService;
         this.stripeProperties = stripeProperties;
+        this.ensurebackProperties = ensurebackProperties;
     }
 
-    public StripeConnectStartResponse start(StripeConnectStartRequest request) {
+    public record OnboardingRedirect(URI redirectUri, UUID state, boolean alreadyConnected) {
+    }
+
+    public record CallbackResult(URI redirectUri, boolean connected, String stripeAccountId) {
+    }
+
+    public OnboardingRedirect initiateOnboarding(UUID userId, String requestedReturnPath) {
         ensureStripeConfig();
-        Stripe.apiKey = stripeProperties.getSecretKey();
-        Stripe.clientId = stripeProperties.getConnectClientId();
-        User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown merchant"));
-        if (user.getRole() != User.Role.MERCHANT) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Only merchant accounts can connect with Stripe");
+        User user = null;
+        if (userId != null) {
+            user = userRepository.findById(userId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
         }
 
-        StripeConnectSession session = new StripeConnectSession(UUID.randomUUID(), user.getId(), OffsetDateTime.now());
+        String normalizedReturnPath = normalizeReturnPath(requestedReturnPath);
+
+        if (user != null && StringUtils.hasText(user.getStripeAccountId())) {
+            URI redirectUri = buildAppRedirect(normalizedReturnPath, null, user.getStripeAccountId(), null, null);
+            return new OnboardingRedirect(redirectUri, null, true);
+        }
+
+        if (user != null) {
+            sessionRepository.deleteByUser(user);
+        }
+
+        User.Role targetRole = user != null ? user.getRole() : User.Role.MERCHANT;
+
+        StripeConnectSession session = new StripeConnectSession(
+                UUID.randomUUID(),
+                user,
+                targetRole,
+                normalizedReturnPath,
+                OffsetDateTime.now()
+        );
         sessionRepository.save(session);
+
+        Stripe.apiKey = stripeProperties.getSecretKey();
+        Stripe.clientId = stripeProperties.getConnectClientId();
 
         UriComponentsBuilder builder = UriComponentsBuilder
                 .fromUri(URI.create("https://connect.stripe.com/oauth/authorize"))
@@ -73,81 +101,123 @@ public class StripeConnectService {
                 .queryParam("redirect_uri", stripeProperties.getConnectRedirectUri())
                 .queryParam("state", session.getState().toString());
 
-        builder.queryParam("stripe_user[email]", user.getEmail());
-
         String authorizeUrl = builder.build(true).toUriString();
-        log.debug("Initialized Stripe Connect session {} for user {}", session.getState(), user.getId());
-        return new StripeConnectStartResponse(authorizeUrl);
+        if (user != null) {
+            log.debug("Initialized Stripe Connect onboarding session {} for user {}", session.getState(), user.getId());
+        } else {
+            log.debug("Initialized Stripe Connect onboarding session {} for anonymous user", session.getState());
+        }
+        return new OnboardingRedirect(URI.create(authorizeUrl), session.getState(), false);
     }
 
-    public LoginResponse complete(StripeConnectCallbackRequest request) throws StripeException {
+    public CallbackResult completeOnboarding(String stateValue,
+                                             String code,
+                                             String error,
+                                             String errorDescription) throws StripeException {
         ensureStripeConfig();
-        Stripe.apiKey = stripeProperties.getSecretKey();
-        Stripe.clientId = stripeProperties.getConnectClientId();
-        UUID state = parseState(request.state());
-        Optional<StripeConnectSession> sessionOpt = sessionRepository.findById(state);
-        if (sessionOpt.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown or expired Stripe Connect session");
-        }
-        StripeConnectSession session = sessionOpt.get();
+        UUID state = parseState(stateValue);
+        StripeConnectSession session = sessionRepository.findById(state)
+                .orElseThrow(() -> {
+                    log.warn("Stripe Connect callback received unknown state {}", stateValue);
+                    return new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown or expired Stripe Connect session");
+                });
+
         if (session.getCreatedAt().isBefore(OffsetDateTime.now().minus(SESSION_TTL))) {
+            log.warn("Stripe Connect session {} expired at {}", stateValue, session.getCreatedAt());
             sessionRepository.delete(session);
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe Connect session has expired");
         }
-        if (request.error() != null) {
+
+        User user = session.getUser();
+        String normalizedReturnPath = normalizeReturnPath(session.getReturnPath());
+
+        if (StringUtils.hasText(error)) {
+            String existingAccountId = user != null ? user.getStripeAccountId() : null;
             sessionRepository.delete(session);
-            String message = Optional.ofNullable(request.errorDescription())
-                    .orElse("Stripe authorization failed: " + request.error());
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+            URI redirectUri = buildAppRedirect(
+                    normalizedReturnPath,
+                    null,
+                    existingAccountId,
+                    error,
+                    Optional.ofNullable(errorDescription).orElse(error)
+            );
+            return new CallbackResult(redirectUri, StringUtils.hasText(existingAccountId), existingAccountId);
         }
 
-        User user = userRepository.findById(session.getUserId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Merchant no longer exists"));
-
-        String code = Optional.ofNullable(request.code())
+        String authorizationCode = Optional.ofNullable(code)
                 .map(String::trim)
                 .filter(value -> !value.isEmpty())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing Stripe authorization code"));
+                .orElseThrow(() -> {
+                    log.warn("Stripe Connect callback missing authorization code for state {}", stateValue);
+                    sessionRepository.delete(session);
+                    return new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing Stripe authorization code");
+                });
 
+        Stripe.apiKey = stripeProperties.getSecretKey();
+        Stripe.clientId = stripeProperties.getConnectClientId();
+
+        TokenResponse tokenResponse = exchangeAuthorizationCode(authorizationCode);
+        String stripeAccountId = Optional.ofNullable(tokenResponse.getStripeUserId())
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .orElseThrow(() -> {
+                    log.warn("Stripe Connect token response did not include an account id for state {}", stateValue);
+                    return new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe did not return an account identifier");
+                });
+
+        if (user == null) {
+            user = userRepository.findByStripeAccountId(stripeAccountId).orElse(null);
+        }
+
+        if (user == null) {
+            user = new User(UUID.randomUUID(), session.getTargetRole(), stripeAccountId, null, null);
+            user = userRepository.save(user);
+            log.info("Created new user {} for Stripe account {}", user.getId(), stripeAccountId);
+        } else if (!stripeAccountId.equals(user.getStripeAccountId())) {
+            user.setStripeAccountId(stripeAccountId);
+            user = userRepository.save(user);
+            log.info("Updated Stripe account for user {} to {}", user.getId(), stripeAccountId);
+        }
+
+        sessionRepository.delete(session);
+
+        JwtTokenService.Token token = jwtTokenService.createToken(user);
+        URI redirectUri = buildAppRedirect(normalizedReturnPath, token.value(), stripeAccountId, null, null);
+        log.info("Stripe Connect onboarding completed for user {} with account {}", user.getId(), stripeAccountId);
+        return new CallbackResult(redirectUri, true, stripeAccountId);
+    }
+
+    private TokenResponse exchangeAuthorizationCode(String code) throws StripeException {
         Map<String, Object> params = new HashMap<>();
         params.put("grant_type", "authorization_code");
         params.put("code", code);
+        params.put("redirect_uri", stripeProperties.getConnectRedirectUri());
 
         RequestOptions requestOptions = RequestOptions.builder()
                 .setApiKey(stripeProperties.getSecretKey())
                 .setClientId(stripeProperties.getConnectClientId())
                 .build();
 
-        TokenResponse tokenResponse;
         try {
-            tokenResponse = OAuth.token(params, requestOptions);
+            return OAuth.token(params, requestOptions);
         } catch (AuthenticationException | InvalidRequestException ex) {
+            log.warn("Stripe OAuth token exchange failed: {}", ex.getMessage());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to authorize Stripe account", ex);
         }
-
-        String stripeAccountId = tokenResponse.getStripeUserId();
-        if (stripeAccountId == null || stripeAccountId.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe did not return an account identifier");
-        }
-
-        user.setStripeAccountId(stripeAccountId);
-        userRepository.save(user);
-        sessionRepository.delete(session);
-
-        var token = jwtTokenService.createToken(user);
-        log.info("Stripe Connect login complete for user {} with account {}", user.getId(), stripeAccountId);
-        return new LoginResponse(token.value(), "Bearer", token.expiresAt(), user.getRole().name());
     }
 
     private void ensureStripeConfig() {
-        if (stripeProperties.getSecretKey() == null || stripeProperties.getSecretKey().isBlank()) {
+        if (!StringUtils.hasText(stripeProperties.getSecretKey())) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Stripe secret key is not configured");
         }
-        if (stripeProperties.getConnectClientId() == null || stripeProperties.getConnectClientId().isBlank()) {
+        if (!StringUtils.hasText(stripeProperties.getConnectClientId())) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Stripe Connect client id is not configured");
         }
-        if (stripeProperties.getConnectRedirectUri() == null || stripeProperties.getConnectRedirectUri().isBlank()) {
+        if (!StringUtils.hasText(stripeProperties.getConnectRedirectUri())) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Stripe Connect redirect URI is not configured");
+        }
+        if (!StringUtils.hasText(ensurebackProperties.getAppBaseUrl())) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "EnsureBack app base URL is not configured");
         }
     }
 
@@ -158,4 +228,45 @@ public class StripeConnectService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Stripe Connect state parameter", ex);
         }
     }
+
+    private String normalizeReturnPath(String returnPath) {
+        if (!StringUtils.hasText(returnPath)) {
+            return DASHBOARD_PATH;
+        }
+        String trimmed = returnPath.trim();
+        if (!trimmed.startsWith("/")) {
+            return DASHBOARD_PATH;
+        }
+        return trimmed;
+    }
+
+    private URI buildAppRedirect(String returnPath,
+                                 String token,
+                                 String stripeAccountId,
+                                 String errorCode,
+                                 String errorDescription) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(ensurebackProperties.getAppBaseUrl())
+                .path(normalizeReturnPath(returnPath));
+        if (StringUtils.hasText(token)) {
+            builder.queryParam("token", token);
+        }
+        if (StringUtils.hasText(stripeAccountId)) {
+            builder.queryParam("connected", true);
+            builder.queryParam("stripeAccountId", stripeAccountId);
+        }
+        if (StringUtils.hasText(errorCode)) {
+            builder.queryParam("stripe_error", errorCode);
+            if (StringUtils.hasText(errorDescription) && !errorCode.equals(errorDescription)) {
+                builder.queryParam("stripe_error_description", errorDescription);
+            }
+        }
+        return builder.build(true).toUri();
+    }
 }
+
+
+
+
+
+
+

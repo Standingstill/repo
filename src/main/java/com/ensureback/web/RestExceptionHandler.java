@@ -3,6 +3,8 @@ package com.ensureback.web;
 import com.stripe.exception.StripeException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
+import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -48,6 +50,19 @@ public class RestExceptionHandler {
         return buildResponse("STRIPE_ERROR", ex.getMessage(), HttpStatus.BAD_GATEWAY);
     }
 
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleResponseStatus(ResponseStatusException ex) {
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+        if (status == null) {
+            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+        String message = ex.getReason();
+        if (!StringUtils.hasText(message)) {
+            message = ex.getMessage();
+        }
+        return buildResponse(status.name(), message, status);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(HttpServletRequest request, Exception ex) {
         log.error("Unhandled exception", ex);
@@ -56,12 +71,13 @@ public class RestExceptionHandler {
 
     private ResponseEntity<Map<String, Object>> buildResponse(String code, String message, HttpStatus status) {
         String correlationId = RequestContext.getCorrelationId();
-        Map<String, Object> body = Map.of(
-                "code", code,
-                "message", message,
-                "details", null,
-                "correlationId", correlationId
-        );
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("code", code);
+        body.put("message", message);
+        body.put("details", null);
+        body.put("correlationId", correlationId);
         return ResponseEntity.status(status).body(body);
     }
 }
+
+

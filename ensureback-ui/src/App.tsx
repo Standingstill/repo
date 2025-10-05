@@ -1,20 +1,22 @@
-import type { ReactElement } from 'react';
+﻿import type { ReactElement } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import NavBar from '@/components/NavBar';
 import { useAuth } from '@/hooks/useAuth';
-import BuyerOrders from '@/pages/BuyerOrders';
-import Dashboard from '@/pages/Dashboard';
-import DeveloperCenter from '@/pages/DeveloperCenter';
+import BuyerDashboard from '@/pages/dashboard/buyer';
+import AdminDashboard from '@/pages/dashboard/admin';
+import MerchantDashboard from '@/pages/dashboard/merchant';
+import IntegrationWizard from '@/pages/IntegrationWizard';
 import Landing from '@/pages/Landing';
-import Login from '@/pages/Login';
+import StripeConnectCallback from '@/pages/StripeConnectCallback';
+import { IntegrationWizardGuard, MerchantGate, RequireMerchantIntegration } from '@/routes/MerchantStatusGates';
 
 const ProtectedRoute = ({ children }: { children: ReactElement }) => {
   const { isAuthenticated } = useAuth();
   const location = useLocation();
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
+    return <Navigate to="/" replace state={{ from: location }} />;
   }
 
   return children;
@@ -26,21 +28,50 @@ const App = () => {
       <NavBar />
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route path="/developer" element={<DeveloperCenter />} />
-        <Route path="/login" element={<Login />} />
+        <Route
+          path="/developer"
+          element={
+            <ProtectedRoute><IntegrationWizardGuard><IntegrationWizard /></IntegrationWizardGuard></ProtectedRoute>
+          }
+        />
+        <Route path="/integration-wizard" element={<ProtectedRoute><IntegrationWizardGuard><IntegrationWizard /></IntegrationWizardGuard></ProtectedRoute>} />
+        <Route path="/auth/callback" element={<StripeConnectCallback />} />
+        <Route path="/login" element={<StripeConnectCallback />} />
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <MerchantGate />
             </ProtectedRoute>
           }
         />
         <Route
-          path="/buyer/orders"
+          path="/merchant/dashboard/*"
           element={
             <ProtectedRoute>
-              <BuyerOrders />
+              <RequireMerchantIntegration>
+                <MerchantDashboard />
+              </RequireMerchantIntegration>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/merchant/*"
+          element={<Navigate to="/merchant/dashboard" replace />}
+        />
+        <Route
+          path="/dashboard/buyer/*"
+          element={
+            <ProtectedRoute>
+              <BuyerDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/admin/*"
+          element={
+            <ProtectedRoute>
+              <AdminDashboard />
             </ProtectedRoute>
           }
         />
@@ -51,3 +82,4 @@ const App = () => {
 };
 
 export default App;
+

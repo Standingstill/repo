@@ -1,14 +1,17 @@
-import axiosClient, { TOKEN_STORAGE_KEY } from './axiosClient';
+﻿import axiosClient, { clearStoredToken } from './axiosClient';
 
 export interface LoginResponse {
   accessToken: string;
   tokenType: string;
   expiresAt: string;
   role: string;
+  stripeAccountId: string;
+  redirectPath: string | null;
 }
 
 export interface StripeConnectStartRequest {
-  email: string;
+  role?: 'ADMIN' | 'MERCHANT' | 'BUYER';
+  returnPath?: string;
 }
 
 export interface StripeConnectStartResponse {
@@ -23,21 +26,20 @@ export interface StripeConnectCallbackRequest {
 }
 
 export const startStripeConnect = async (
-  payload: StripeConnectStartRequest
+  payload?: StripeConnectStartRequest
 ): Promise<StripeConnectStartResponse> => {
-  const response = await axiosClient.post<StripeConnectStartResponse>('/auth/connect/start', payload);
+  const response = await axiosClient.post<StripeConnectStartResponse>('/auth/stripe/start', payload ?? {});
   return response.data;
 };
 
 export const completeStripeConnect = async (
   payload: StripeConnectCallbackRequest
 ): Promise<LoginResponse> => {
-  const response = await axiosClient.post<LoginResponse>('/auth/connect/callback', payload);
+  const response = await axiosClient.post<LoginResponse>('/auth/stripe/callback', payload);
   return response.data;
 };
 
-export const logout = (): void => {
-  if (typeof window !== 'undefined') {
-    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-  }
+export const clearSession = (): void => {
+  clearStoredToken();
 };
+

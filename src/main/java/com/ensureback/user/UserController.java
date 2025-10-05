@@ -36,7 +36,7 @@ public class UserController {
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().build();
         }
-        Optional<UserDto> created = userService.create(request.email(), role);
+        Optional<UserDto> created = userService.create(request.stripeAccountId(), role);
         return created
                 .map(dto -> ResponseEntity.status(HttpStatus.CREATED).body(dto))
                 .orElseGet(() -> ResponseEntity.badRequest().build());
@@ -59,13 +59,17 @@ public class UserController {
     }
 
     @GetMapping("/lookup")
-    public ResponseEntity<UserDto> findByEmail(@RequestParam("email") String email) {
-        return ResponseEntity.of(userService.findByEmail(email));
+    public ResponseEntity<UserDto> findByStripeAccount(@RequestParam("stripeAccountId") String stripeAccountId) {
+        return ResponseEntity.of(userService.findByStripeAccountId(stripeAccountId));
     }
 
     @PostMapping("/{userId}/stripe-account")
     public ResponseEntity<UserDto> updateStripeAccount(@PathVariable UUID userId,
                                                        @Valid @RequestBody UpdateStripeAccountRequest request) {
-        return ResponseEntity.of(userService.updateStripeAccount(userId, request.stripeAccountLinked()));
+        try {
+            return ResponseEntity.of(userService.updateStripeAccount(userId, request.stripeAccountId()));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        }
     }
 }

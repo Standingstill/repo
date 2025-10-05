@@ -1,4 +1,4 @@
-﻿spring:
+spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:ensureback;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.h2.Driver}
@@ -28,15 +28,11 @@ jwt:
   secret: ${JWT_SECRET:dev-jwt-secret}
   expiration: PT1H
 
-magic-link:
-  secret: ${MAGIC_LINK_SECRET:dev-magic-secret}
-  expiration: PT2H
-
 stripe:
-  secret-key: ${STRIPE_SECRET_KEY:}
+  secret-key: sk_test_51RHTiR7lw7hlinQNftxUMSXEoQYbcjFMh02ZIEirv4d0d0ViObqI3nqWPT3duTPinmLVpI01rGAgKjEj5MWUDYxm00nvUhlPjf
   webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
-  connect-client-id: ${STRIPE_CONNECT_CLIENT_ID:}
-  connect-redirect-uri: ${STRIPE_CONNECT_REDIRECT_URI:http://localhost:5173/login}
+  connect-client-id: ca_SKmIVbip4OVDtT9TGJHen413zcD8lHro
+  connect-redirect-uri: 'http://localhost:5173/login'
 
 aftership:
   api-key: ${AFTERSHIP_API_KEY:}
@@ -46,7 +42,7 @@ ensureback:
   dispute-window-default-hours: ${ENSUREBACK_DISPUTE_WINDOW_HOURS:120}
   fee-bps: ${ENSUREBACK_FEE_BPS:49}
   fixed-fee-cents: ${ENSUREBACK_FIXED_FEE_CENTS:19}
-  app-base-url: ${APP_BASE_URL:http://localhost:8080}
+  app-base-url: ${APP_BASE_URL:http://localhost:5173}
   email:
     enabled: ${ENSUREBACK_EMAIL_ENABLED:false}
     from: ${ENSUREBACK_EMAIL_FROM:noreply@ensureback.test}
@@ -64,6 +60,3 @@ spring:
   h2:
     console:
       enabled: false
-
-
-

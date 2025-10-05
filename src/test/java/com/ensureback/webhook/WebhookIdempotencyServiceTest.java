@@ -13,10 +13,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-@DataJpaTest(properties = {
-        "spring.flyway.enabled=false",
-        "spring.main.allow-bean-definition-overriding=true"
-})
+@DataJpaTest(properties = "spring.main.allow-bean-definition-overriding=true")
 @Import({WebhookIdempotencyService.class, WebhookIdempotencyServiceTest.TestConfig.class})
 class WebhookIdempotencyServiceTest {
 

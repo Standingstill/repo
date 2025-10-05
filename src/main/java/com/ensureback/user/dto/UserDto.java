@@ -4,10 +4,8 @@ import java.time.OffsetDateTime;
 
 public record UserDto(
         String userId,
-        String email,
+        String stripeAccountId,
         String role,
-        boolean stripeAccountLinked,
-        boolean passwordSet,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
 ) {

@@ -23,23 +23,17 @@ public class IntegrationChecklist {
     @JoinColumn(name = "merchant_id", nullable = false, unique = true)
     private Merchant merchant;
 
-    @Column(name = "connected_stripe", nullable = false)
-    private boolean connectedStripe = false;
+    @Column(name = "stripe_connected", nullable = false)
+    private boolean stripeConnected = false;
 
-    @Column(name = "webhook_configured", nullable = false)
-    private boolean webhookConfigured = false;
+    @Column(name = "webhook_registered", nullable = false)
+    private boolean webhookRegistered = false;
 
-    @Column(name = "aftership_configured", nullable = false)
-    private boolean aftershipConfigured = false;
+    @Column(name = "test_charge_passed", nullable = false)
+    private boolean testChargePassed = false;
 
-    @Column(name = "test_charge_done", nullable = false)
-    private boolean testChargeDone = false;
-
-    @Column(name = "last_checked_at")
-    private OffsetDateTime lastCheckedAt;
-
-    @Column(name = "aftership_api_key")
-    private String aftershipApiKey;
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
 
     public IntegrationChecklist() {
         // JPA
@@ -61,51 +55,35 @@ public class IntegrationChecklist {
         this.merchant = merchant;
     }
 
-    public boolean isConnectedStripe() {
-        return connectedStripe;
+    public boolean isStripeConnected() {
+        return stripeConnected;
     }
 
-    public void setConnectedStripe(boolean connectedStripe) {
-        this.connectedStripe = connectedStripe;
+    public void setStripeConnected(boolean stripeConnected) {
+        this.stripeConnected = stripeConnected;
     }
 
-    public boolean isWebhookConfigured() {
-        return webhookConfigured;
+    public boolean isWebhookRegistered() {
+        return webhookRegistered;
     }
 
-    public void setWebhookConfigured(boolean webhookConfigured) {
-        this.webhookConfigured = webhookConfigured;
+    public void setWebhookRegistered(boolean webhookRegistered) {
+        this.webhookRegistered = webhookRegistered;
     }
 
-    public boolean isAftershipConfigured() {
-        return aftershipConfigured;
+    public boolean isTestChargePassed() {
+        return testChargePassed;
     }
 
-    public void setAftershipConfigured(boolean aftershipConfigured) {
-        this.aftershipConfigured = aftershipConfigured;
+    public void setTestChargePassed(boolean testChargePassed) {
+        this.testChargePassed = testChargePassed;
     }
 
-    public boolean isTestChargeDone() {
-        return testChargeDone;
+    public OffsetDateTime getUpdatedAt() {
+        return updatedAt;
     }
 
-    public void setTestChargeDone(boolean testChargeDone) {
-        this.testChargeDone = testChargeDone;
-    }
-
-    public OffsetDateTime getLastCheckedAt() {
-        return lastCheckedAt;
-    }
-
-    public void setLastCheckedAt(OffsetDateTime lastCheckedAt) {
-        this.lastCheckedAt = lastCheckedAt;
-    }
-
-    public String getAftershipApiKey() {
-        return aftershipApiKey;
-    }
-
-    public void setAftershipApiKey(String aftershipApiKey) {
-        this.aftershipApiKey = aftershipApiKey;
+    public void setUpdatedAt(OffsetDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

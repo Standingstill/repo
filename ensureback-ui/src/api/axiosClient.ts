@@ -1,20 +1,58 @@
-import axios from 'axios';
+﻿import axios from "axios";
 
 export const API_BASE_URL = '/api';
 export const TOKEN_STORAGE_KEY = 'ensureback_token';
 
+export const readStoredToken = (): string | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const fromLocal = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+  if (fromLocal) {
+    return fromLocal;
+  }
+
+  return window.sessionStorage.getItem(TOKEN_STORAGE_KEY);
+};
+
+export const persistToken = (token: string): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  } catch (error) {
+    console.warn('Unable to persist token to localStorage', error);
+  }
+
+  try {
+    window.sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+  } catch (error) {
+    console.warn('Unable to persist token to sessionStorage', error);
+  }
+};
+
+export const clearStoredToken = (): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+  window.sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+};
+
 const axiosClient = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: false
+  withCredentials: false,
 });
 
 axiosClient.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
-    if (token) {
-      config.headers = config.headers ?? {};
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+  const token = readStoredToken();
+  if (token) {
+    config.headers = config.headers ?? {};
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
@@ -22,8 +60,8 @@ axiosClient.interceptors.request.use((config) => {
 axiosClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && typeof window !== 'undefined') {
-      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+    if (error.response?.status === 401) {
+      clearStoredToken();
     }
     return Promise.reject(error);
   }

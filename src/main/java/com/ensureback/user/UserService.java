@@ -7,13 +7,13 @@ import java.util.UUID;
 
 public interface UserService {
 
-    Optional<UserDto> create(String email, User.Role role);
+    Optional<UserDto> create(String stripeAccountId, User.Role role);
 
     Optional<UserDto> findById(UUID userId);
 
-    Optional<UserDto> findByEmail(String email);
+    Optional<UserDto> findByStripeAccountId(String stripeAccountId);
 
     List<UserDto> listByRole(User.Role role);
 
-    Optional<UserDto> updateStripeAccount(UUID userId, boolean stripeAccountLinked);
+    Optional<UserDto> updateStripeAccount(UUID userId, String stripeAccountId);
 }

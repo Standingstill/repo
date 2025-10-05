@@ -13,9 +13,11 @@ import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
+@Transactional(readOnly = true)
 public class ApiKeyAuthService {
 
     private static final Duration MAX_SKEW = Duration.ofMinutes(5);
@@ -41,7 +43,7 @@ public class ApiKeyAuthService {
             return Optional.empty();
         }
         return apiKeyRepository.findById(apiKeyId)
-                .filter(apiKey -> apiKey.getStatus() == ApiKey.Status.ACTIVE)
+                .filter(apiKey -> !apiKey.isRevoked())
                 .flatMap(apiKey -> verifySignature(apiKey, rawKey, providedSignature, canonicalRequest));
     }
 
@@ -57,13 +59,13 @@ public class ApiKeyAuthService {
         if (!MessageDigestUtil.constantTimeEquals(expectedSignature, providedSignature)) {
             return Optional.empty();
         }
-        UUID merchantUserId = apiKey.getMerchantUser() != null ? apiKey.getMerchantUser().getId() : null;
-        if (merchantUserId == null) {
+        Merchant merchant = apiKey.getMerchant();
+        if (merchant == null) {
             return Optional.empty();
         }
-        return merchantRepository.findByUserId(merchantUserId)
-                .map(Merchant::getId)
-                .map(merchantId -> new ApiKeyAuthenticationToken(apiKey.getId(), merchantId, apiKey.getMerchantUser().getEmail()));
+        return merchantRepository.findById(merchant.getId())
+                .filter(m -> m.getUser() != null)
+                .map(m -> new ApiKeyAuthenticationToken(apiKey.getId(), m.getId(), m.getUser().getStripeAccountId()));
     }
 
     private String hmacSha256(String rawKey, String message) {

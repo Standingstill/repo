@@ -1,25 +1,408 @@
-﻿openapi: 3.1.0
-defaults:
-  info:
-    title: EnsureBack API
-    version: 0.1.0
+openapi: 3.1.0
+info:
+  title: EnsureBack Integration Wizard API
+  version: 1.0.0
+  description: |
+    The Integration Wizard guides merchants and developers through onboarding EnsureBack.
+    Authenticate every request with either a merchant JWT (`Authorization: Bearer <token>`) or an API key signature.
+
+    ### API key authentication
+    1. Build the canonical request string: `<HTTP_METHOD>\n<PATH>\n<ISO8601_TIMESTAMP>\n<body>` (omit body for GET).
+    2. Compute `signature = Base64(HMAC_SHA256(rawApiKey, canonicalRequest))`.
+    3. Send headers:
+       - `Authorization: Bearer <api_key_id>`
+       - `ensureback-signature: <signature>`
+       - `ensureback-timestamp: <ISO8601_TIMESTAMP>`
+servers:
+  - url: https://api.ensureback.local
 paths:
-  /dev/status/{merchantId}:
+  /api/developer/wizard/status:
     get:
-      summary: Get integration checklist
+      summary: Retrieve integration wizard status
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
       parameters:
         - name: merchantId
-          in: path
-          required: true
+          in: query
+          required: false
+          description: Required for admins targeting another merchant.
           schema:
             type: string
             format: uuid
       responses:
         '200':
-          description: Integration checklist
-  /dev/register-keys:
+          description: Wizard status snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationWizardStatus'
+    patch:
+      summary: Manually toggle wizard step completion
+      description: Primarily for support users to correct checklist state.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: merchantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntegrationWizardUpdateRequest'
+      responses:
+        '200':
+          description: Updated wizard status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationWizardStatus'
+  /api/developer/wizard/api-keys:
+    get:
+      summary: List merchant API keys
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: merchantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiKey'
     post:
-      summary: Generate API key for merchant
+      summary: Generate a new API key
+      description: The plaintext key is only returned once. Store it securely.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: merchantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
       responses:
         '201':
-          description: API key created
+          description: Created API key and refreshed status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyCreateResult'
+  /api/developer/wizard/api-keys/{apiKeyId}:
+    delete:
+      summary: Revoke an API key
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: apiKeyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: merchantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Updated wizard status after revocation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationWizardStatus'
+  /api/developer/wizard/webhook/register:
+    post:
+      summary: Register and verify a webhook endpoint
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: merchantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookRegisterRequest'
+      responses:
+        '200':
+          description: Wizard status with webhook state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationWizardStatus'
+  /api/developer/wizard/webhook/test:
+    get:
+      summary: Send a signed test event to the registered webhook
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: merchantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Delivery result and updated status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookTestResult'
+  /api/developer/wizard/stripe/connect:
+    get:
+      summary: Begin Stripe Connect onboarding
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: returnPath
+          in: query
+          required: false
+          schema:
+            type: string
+            default: /developer
+      responses:
+        '200':
+          description: Stripe redirect information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StripeConnectStartResponse'
+  /api/developer/wizard/stripe/callback:
+    get:
+      summary: Stripe Connect OAuth callback
+      description: Stripe redirects here after onboarding. The response also updates the wizard checklist.
+      parameters:
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: error
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: error_description
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Stripe onboarding result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StripeCallbackResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: APIKey
+      description: API key id is provided as the bearer token. Include ensureback-signature and ensureback-timestamp headers.
+  schemas:
+    IntegrationWizardStatus:
+      type: object
+      properties:
+        merchantId:
+          type: string
+          format: uuid
+        stripeConnect:
+          $ref: '#/components/schemas/IntegrationStep'
+        apiKey:
+          $ref: '#/components/schemas/IntegrationStep'
+        webhook:
+          $ref: '#/components/schemas/IntegrationStep'
+        verification:
+          $ref: '#/components/schemas/IntegrationStep'
+        complete:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+        stripeStatus:
+          $ref: '#/components/schemas/StripeStatus'
+        webhookStatus:
+          $ref: '#/components/schemas/WebhookStatus'
+        apiKeys:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKey'
+    IntegrationStep:
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        completed:
+          type: boolean
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        description:
+          type: string
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        revoked:
+          type: boolean
+    ApiKeyCreateResult:
+      type: object
+      properties:
+        apiKey:
+          $ref: '#/components/schemas/ApiKeyCreateResponse'
+        status:
+          $ref: '#/components/schemas/IntegrationWizardStatus'
+    ApiKeyCreateResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        apiKey:
+          type: string
+          description: Plaintext secret. Display once.
+        createdAt:
+          type: string
+          format: date-time
+    WebhookRegisterRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+    WebhookStatus:
+      type: object
+      properties:
+        registered:
+          type: boolean
+        verified:
+          type: boolean
+        url:
+          type: string
+          format: uri
+          nullable: true
+        recentEvents:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookEvent'
+    WebhookEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        delivered:
+          type: boolean
+        payload:
+          type: string
+    WebhookTestResult:
+      type: object
+      properties:
+        delivery:
+          $ref: '#/components/schemas/WebhookTestResponse'
+        status:
+          $ref: '#/components/schemas/IntegrationWizardStatus'
+    WebhookTestResponse:
+      type: object
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        delivered:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+    IntegrationWizardUpdateRequest:
+      type: object
+      properties:
+        stripeConnected:
+          type: boolean
+        webhookRegistered:
+          type: boolean
+        testChargePassed:
+          type: boolean
+    StripeStatus:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        accountId:
+          type: string
+          nullable: true
+        connectedAt:
+          type: string
+          format: date-time
+          nullable: true
+    StripeConnectStartResponse:
+      type: object
+      properties:
+        alreadyConnected:
+          type: boolean
+        redirectUrl:
+          type: string
+          format: uri
+          nullable: true
+        state:
+          type: string
+          nullable: true
+    StripeCallbackResponse:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        stripeAccountId:
+          type: string
+          nullable: true
+        checklistUpdated:
+          type: boolean
