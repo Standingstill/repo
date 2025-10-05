@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -13,6 +13,7 @@ const StripeConnectCallback = () => {
   const { refreshMerchantStatus, setSessionFromToken } = useAuth();
   const [statusMessage, setStatusMessage] = useState('Finalizing your Stripe connection...');
   const [showRetry, setShowRetry] = useState(false);
+  const hasFinalizedRef = useRef(false);
 
   const searchParams = useMemo(() => {
     const params = new URLSearchParams(location.search ?? window.location.search ?? '');
@@ -26,6 +27,12 @@ const StripeConnectCallback = () => {
       return;
     }
 
+    if (hasFinalizedRef.current) {
+      return;
+    }
+
+    hasFinalizedRef.current = true;
+
     const finalize = async () => {
       setShowRetry(false);
       try {
@@ -37,14 +44,28 @@ const StripeConnectCallback = () => {
           },
         });
 
-        const rawMessage = response.data?.message;
+        const responseData = (response.data ?? {}) as Record<string, unknown>;
+        const directToken = typeof responseData.accessToken === 'string' ? responseData.accessToken : null;
+        const legacyToken = typeof responseData.token === 'string' ? responseData.token : null;
+        const nestedLogin =
+          responseData.login && typeof responseData.login === 'object'
+            ? (responseData.login as Record<string, unknown>)
+            : null;
+        const nestedToken = nestedLogin && typeof nestedLogin.accessToken === 'string' ? nestedLogin.accessToken : null;
+        const sessionToken = directToken ?? legacyToken ?? nestedToken;
+
+        if (sessionToken) {
+          setSessionFromToken(sessionToken);
+        }
+
+        const rawMessage = responseData.message;
         if (typeof rawMessage === 'string' && rawMessage.trim().length > 0) {
           setStatusMessage(rawMessage);
         } else {
           setStatusMessage('Verifying your account details...');
         }
 
-        const redirectHint: unknown = response.data?.redirectUrl;
+        const redirectHint: unknown = responseData.redirectUrl;
         let cleanedRedirect: string | null = null;
 
         if (typeof redirectHint === 'string' && redirectHint.trim().length > 0) {
@@ -118,6 +139,7 @@ const StripeConnectCallback = () => {
           setStatusMessage('Unable to finalize Stripe Connect login. Please try again.');
         }
         setShowRetry(true);
+        hasFinalizedRef.current = false;
       }
     };
 

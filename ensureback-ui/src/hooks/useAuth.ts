@@ -3,7 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 
 import { clearSession } from '../api/auth';
-import axiosClient, { TOKEN_STORAGE_KEY, clearStoredToken, persistToken, readStoredToken } from '../api/axiosClient';
+import axiosClient, {
+  TOKEN_STORAGE_KEY,
+  buildAuthorizationHeader,
+  clearStoredToken,
+  persistToken,
+  readStoredToken,
+} from '../api/axiosClient';
 
 interface SessionState {
   token: string;
@@ -228,12 +234,26 @@ export const useAuth = (): UseAuthResult => {
       setMerchantStatusError(null);
 
       try {
-        const response = await axiosClient.get<MerchantStatusResponse>('/merchant/status');
+        const authorization = buildAuthorizationHeader(currentSession.token);
+        const response = await axiosClient.get<MerchantStatusResponse>('/merchant/status', {
+          headers: authorization ? { Authorization: authorization } : undefined,
+        });
         manualMerchantStatusRef.current = false;
         setMerchantStatus(response.data);
         setMerchantStatusError(null);
         return response.data;
       } catch (error) {
+        if (isAxiosError(error) && error.response?.status === 404) {
+          const fallbackStatus: MerchantStatusResponse = {
+            isIntegrated: false,
+            stripeAccountId: currentSession.stripeAccountId || null,
+          };
+          manualMerchantStatusRef.current = false;
+          setMerchantStatus(fallbackStatus);
+          setMerchantStatusError(null);
+          return fallbackStatus;
+        }
+
         console.error('Unable to load merchant status', error);
         manualMerchantStatusRef.current = true;
 
@@ -242,7 +262,10 @@ export const useAuth = (): UseAuthResult => {
           if (status === 401 || status === 403) {
             setMerchantStatusError({ message: 'Session expired, please reconnect Stripe.', status, type: 'auth' });
           } else if (!error.response) {
-            setMerchantStatusError({ message: 'We are having trouble reaching EnsureBack. Check your connection and try again.', type: 'network' });
+            setMerchantStatusError({
+              message: 'We are having trouble reaching EnsureBack. Check your connection and try again.',
+              type: 'network',
+            });
           } else {
             setMerchantStatusError({ message: 'Unable to load merchant status. Please try again later.', status, type: 'unknown' });
           }
