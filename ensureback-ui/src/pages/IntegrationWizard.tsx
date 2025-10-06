@@ -17,23 +17,23 @@ const IntegrationWizard = () => {
   const connectTimeoutRef = useRef<number | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const { merchantStatus, setMerchantStatusManually } = useAuth();
+  const { isIntegrated, setIntegrationStatusManually } = useAuth();
 
   const locationState = location.state as { showSetupBanner?: boolean; setupMessage?: string } | undefined;
   const showSetupBanner = Boolean(locationState?.showSetupBanner);
   const setupBannerMessage = locationState?.setupMessage ?? "Let's set up your Stripe integration.";
 
   const [isConnecting, setIsConnecting] = useState(false);
-  const [hasConnectedStripe, setHasConnectedStripe] = useState(Boolean(merchantStatus?.isIntegrated));
+  const [hasConnectedStripe, setHasConnectedStripe] = useState(Boolean(isIntegrated));
   const [webhookConfigured, setWebhookConfigured] = useState(false);
   const [testPaymentComplete, setTestPaymentComplete] = useState(false);
   const [hasCopiedWebhook, setHasCopiedWebhook] = useState(false);
 
   useEffect(() => {
-    if (merchantStatus?.isIntegrated) {
+    if (isIntegrated) {
       setHasConnectedStripe(true);
     }
-  }, [merchantStatus?.isIntegrated]);
+  }, [isIntegrated]);
 
   useEffect(() => {
     if (!hasCopiedWebhook) {
@@ -56,10 +56,10 @@ const IntegrationWizard = () => {
     setIsConnecting(true);
     connectTimeoutRef.current = window.setTimeout(() => {
       setHasConnectedStripe(true);
-      setMerchantStatusManually({ isIntegrated: true, stripeAccountId: MOCK_STRIPE_ACCOUNT_ID });
+      setIntegrationStatusManually(true);
       setIsConnecting(false);
     }, 900);
-  }, [setMerchantStatusManually]);
+  }, [setIntegrationStatusManually]);
 
   const handleCopyWebhook = useCallback(() => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -82,11 +82,11 @@ const IntegrationWizard = () => {
       return;
     }
     const timeout = setTimeout(() => {
-      setMerchantStatusManually({ isIntegrated: true, stripeAccountId: MOCK_STRIPE_ACCOUNT_ID });
+      setIntegrationStatusManually(true);
       navigate('/merchant/dashboard', { replace: true, state: { fromIntegrationWizard: true } });
     }, 800);
     return () => clearTimeout(timeout);
-  }, [hasConnectedStripe, navigate, setMerchantStatusManually, testPaymentComplete, webhookConfigured]);
+  }, [hasConnectedStripe, navigate, setIntegrationStatusManually, testPaymentComplete, webhookConfigured]);
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-10">

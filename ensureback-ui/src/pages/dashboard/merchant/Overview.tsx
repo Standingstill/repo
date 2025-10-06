@@ -1,26 +1,13 @@
 ﻿import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ArrowUpRight, Clock, ShieldCheck, Zap } from 'lucide-react';
-
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
 import { StatPill } from '@/components/ui/StatPill';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TrendChart } from '@/components/ui/TrendChart';
 
-import {
-  fetchBalance,
-  fetchDisputes,
-  fetchMerchantProfile,
-  fetchMerchantStatus,
-  fetchOrders,
-  formatCurrency,
-  type MerchantDispute,
-  type MerchantOrder
-} from './data';
+import { fetchBalance, fetchDisputes, fetchMerchantProfile, fetchOrders, formatCurrency, type MerchantDispute, type MerchantOrder } from './data';
 
 const STATUS_MAP: Record<MerchantDispute['status'], { label: string; tone: 'info' | 'success' | 'danger' }> = {
   open: { label: 'Open', tone: 'info' },
@@ -63,9 +50,6 @@ const getRecentCases = (disputes: MerchantDispute[]) =>
 
 const MerchantOverview = () => {
   const profileQuery = useQuery({ queryKey: ['merchant', 'profile'], queryFn: fetchMerchantProfile });
-  const statusQuery = useQuery({ queryKey: ['merchant', 'status'], queryFn: fetchMerchantStatus });
-  const navigate = useNavigate();
-
   const ordersQuery = useQuery({ queryKey: ['merchant', 'orders'], queryFn: fetchOrders });
   const disputesQuery = useQuery({ queryKey: ['merchant', 'disputes'], queryFn: fetchDisputes });
   const balanceQuery = useQuery({ queryKey: ['merchant', 'balance'], queryFn: fetchBalance });
@@ -106,17 +90,6 @@ const MerchantOverview = () => {
 
   return (
     <div className="space-y-8">
-      {!statusQuery.isLoading && !statusQuery.isError && statusQuery.data && !statusQuery.data.isIntegrated && (
-        <Alert className="border-primary/40 bg-primary/10">
-          <AlertTitle>Setup Required</AlertTitle>
-          <AlertDescription>
-            Your Stripe account is connected but integration is pending. Complete the remaining steps to unlock the dashboard.
-          </AlertDescription>
-          <div className="mt-4 flex justify-end">
-            <Button onClick={() => navigate('/integration-wizard')}>Complete Integration</Button>
-          </div>
-        </Alert>
-      )}
       <Card className="border border-muted bg-card">
         <CardHeader>
           <CardTitle className="text-2xl">Welcome back{profileQuery.data?.companyName ? `, ${profileQuery.data.companyName}` : ''}</CardTitle>

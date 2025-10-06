@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -10,9 +10,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 const StripeConnectCallback = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { refreshMerchantStatus, setSessionFromToken } = useAuth();
+  const { checkIntegrationStatus, setSessionFromToken, integrationError } = useAuth();
   const [statusMessage, setStatusMessage] = useState('Finalizing your Stripe connection...');
   const [showRetry, setShowRetry] = useState(false);
+  const hasFinalizedRef = useRef(false);
+  const latestIntegrationErrorRef = useRef<string | null>(integrationError);
 
   const searchParams = useMemo(() => {
     const params = new URLSearchParams(location.search ?? window.location.search ?? '');
@@ -20,11 +22,21 @@ const StripeConnectCallback = () => {
   }, [location.search]);
 
   useEffect(() => {
+    latestIntegrationErrorRef.current = integrationError;
+  }, [integrationError]);
+
+  useEffect(() => {
     if (!searchParams.state) {
       setStatusMessage('Missing Stripe session state. Please restart the connection.');
       setShowRetry(true);
       return;
     }
+
+    if (hasFinalizedRef.current) {
+      return;
+    }
+
+    hasFinalizedRef.current = true;
 
     const finalize = async () => {
       setShowRetry(false);
@@ -37,14 +49,28 @@ const StripeConnectCallback = () => {
           },
         });
 
-        const rawMessage = response.data?.message;
+        const responseData = (response.data ?? {}) as Record<string, unknown>;
+        const directToken = typeof responseData.accessToken === 'string' ? responseData.accessToken : null;
+        const legacyToken = typeof responseData.token === 'string' ? responseData.token : null;
+        const nestedLogin =
+          responseData.login && typeof responseData.login === 'object'
+            ? (responseData.login as Record<string, unknown>)
+            : null;
+        const nestedToken = nestedLogin && typeof nestedLogin.accessToken === 'string' ? nestedLogin.accessToken : null;
+        const sessionToken = directToken ?? legacyToken ?? nestedToken;
+
+        if (sessionToken) {
+          setSessionFromToken(sessionToken);
+        }
+
+        const rawMessage = responseData.message;
         if (typeof rawMessage === 'string' && rawMessage.trim().length > 0) {
           setStatusMessage(rawMessage);
         } else {
           setStatusMessage('Verifying your account details...');
         }
 
-        const redirectHint: unknown = response.data?.redirectUrl;
+        const redirectHint: unknown = responseData.redirectUrl;
         let cleanedRedirect: string | null = null;
 
         if (typeof redirectHint === 'string' && redirectHint.trim().length > 0) {
@@ -66,24 +92,29 @@ const StripeConnectCallback = () => {
           cleanedRedirect = `${path}${search}${hash}`;
         }
 
-        try {
-          const status = await refreshMerchantStatus();
-          if (status?.isIntegrated) {
-            setStatusMessage('Sending you to your merchant dashboard...');
-            navigate('/merchant/dashboard', { replace: true });
-            return;
-          }
+        const integrationResult = await checkIntegrationStatus({ force: true });
 
-          if (status && !status.isIntegrated) {
-            setStatusMessage("Let's set up your Stripe integration.");
-            navigate('/integration-wizard', {
-              replace: true,
-              state: { showSetupBanner: true, setupMessage: "Let's set up your Stripe integration." },
-            });
-            return;
-          }
-        } catch (statusError) {
-          console.error('Unable to refresh merchant status after Stripe callback', statusError);
+        if (integrationResult === true) {
+          setStatusMessage('Sending you to your merchant dashboard...');
+          navigate('/merchant/dashboard', { replace: true });
+          return;
+        }
+
+        if (integrationResult === false) {
+          setStatusMessage("Let's set up your Stripe integration.");
+          navigate('/integration-wizard', {
+            replace: true,
+            state: { showSetupBanner: true, setupMessage: "Let's set up your Stripe integration." },
+          });
+          return;
+        }
+
+        const latestError = latestIntegrationErrorRef.current;
+        if (latestError) {
+          setStatusMessage(latestError);
+          setShowRetry(true);
+          hasFinalizedRef.current = false;
+          return;
         }
 
         if (cleanedRedirect) {
@@ -118,11 +149,12 @@ const StripeConnectCallback = () => {
           setStatusMessage('Unable to finalize Stripe Connect login. Please try again.');
         }
         setShowRetry(true);
+        hasFinalizedRef.current = false;
       }
     };
 
     void finalize();
-  }, [navigate, refreshMerchantStatus, searchParams, setSessionFromToken]);
+  }, [checkIntegrationStatus, navigate, searchParams, setSessionFromToken]);
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-muted/60 px-4 py-16">

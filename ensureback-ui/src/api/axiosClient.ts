@@ -1,7 +1,24 @@
-﻿import axios from "axios";
+import axios from "axios";
 
 export const API_BASE_URL = '/api';
 export const TOKEN_STORAGE_KEY = 'ensureback_token';
+
+export const buildAuthorizationHeader = (token: string | null | undefined): string | null => {
+  if (!token) {
+    return null;
+  }
+
+  const normalized = token.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.toLowerCase().startsWith('bearer ')) {
+    return normalized;
+  }
+
+  return `Bearer ${normalized}`;
+};
 
 export const readStoredToken = (): string | null => {
   if (typeof window === 'undefined') {
@@ -50,9 +67,10 @@ const axiosClient = axios.create({
 
 axiosClient.interceptors.request.use((config) => {
   const token = readStoredToken();
-  if (token) {
+  const authorization = buildAuthorizationHeader(token);
+  if (authorization) {
     config.headers = config.headers ?? {};
-    config.headers.Authorization = `Bearer ${token}`;
+    config.headers.Authorization = authorization;
   }
   return config;
 });

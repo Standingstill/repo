@@ -1,4 +1,4 @@
-﻿import axiosClient from '@/api/axiosClient';
+import axiosClient from '@/api/axiosClient';
 
 export interface MerchantProfile {
   id: string;
@@ -12,11 +12,6 @@ export interface MerchantProfile {
   financeEmail?: string;
   apiKey?: string;
   permissions?: Array<{ name: string; status: 'active' | 'pending' | 'revoked' }>;
-}
-
-export interface MerchantStatus {
-  stripeAccountId?: string | null;
-  isIntegrated: boolean;
 }
 
 export interface MerchantOrder {
@@ -52,11 +47,6 @@ export interface MerchantPolicy {
 
 export const fetchMerchantProfile = async (): Promise<MerchantProfile> => {
   const response = await axiosClient.get<MerchantProfile>('/merchant/me');
-  return response.data;
-};
-
-export const fetchMerchantStatus = async (): Promise<MerchantStatus> => {
-  const response = await axiosClient.get<MerchantStatus>('/merchant/status');
   return response.data;
 };
 

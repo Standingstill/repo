@@ -31,14 +31,15 @@ const MerchantShell = () => {
   );
 
   const {
-    merchantStatus,
-    isMerchantStatusLoading,
-    merchantStatusError,
-    refreshMerchantStatus,
+    isIntegrated,
+    isCheckingIntegration,
+    hasCheckedIntegration,
+    integrationError,
+    checkIntegrationStatus,
     initiateConnect,
     isInitiating
   } = useAuth();
-  const errorMessage = merchantStatusError?.message ?? "We couldn't confirm your integration state. Please retry or contact support if the issue persists.";
+  const errorMessage = integrationError ?? "We couldn't confirm your integration state. Please retry or contact support if the issue persists.";
 
   const handleConnect = useCallback(() => {
     void initiateConnect('/merchant/dashboard').catch((error) => {
@@ -47,17 +48,17 @@ const MerchantShell = () => {
   }, [initiateConnect]);
 
   const handleRetry = useCallback(() => {
-    void refreshMerchantStatus({ bypassManual: true }).catch((error) => {
+    void checkIntegrationStatus({ force: true }).catch((error) => {
       console.error('Unable to refresh merchant status', error);
     });
-  }, [refreshMerchantStatus]);
+  }, [checkIntegrationStatus]);
 
-  const showIntegrationPrompt = !isMerchantStatusLoading && merchantStatus && !merchantStatus.isIntegrated;
-  const showLoader = isMerchantStatusLoading || (!merchantStatus && !merchantStatusError);
+  const showIntegrationPrompt = hasCheckedIntegration && !isCheckingIntegration && isIntegrated === false;
+  const showLoader = !hasCheckedIntegration || isCheckingIntegration || isIntegrated === null;
 
   let content: JSX.Element;
 
-  if (merchantStatusError) {
+  if (integrationError) {
     content = (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
         <Alert variant="destructive" className="max-w-md text-left">
