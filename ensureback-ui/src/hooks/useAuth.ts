@@ -3,7 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 
 import { clearSession } from '../api/auth';
-import axiosClient, { TOKEN_STORAGE_KEY, clearStoredToken, persistToken, readStoredToken } from '../api/axiosClient';
+import axiosClient, {
+  TOKEN_STORAGE_KEY,
+  buildAuthorizationHeader,
+  clearStoredToken,
+  persistToken,
+  readStoredToken,
+} from '../api/axiosClient';
 
 interface SessionState {
   token: string;
