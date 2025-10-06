@@ -37,8 +37,11 @@ public class SecurityConfig {
                                 "/ws/**",
                                 "/dev/docs").permitAll()
                         .requestMatchers(HttpMethod.POST, "/dev/register-keys").authenticated()
+                        .requestMatchers("/h2-console/**").permitAll()
                         .anyRequest().authenticated()
                 )
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/h2-console/**"))
+                .headers(headers -> headers.frameOptions().sameOrigin())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(apiKeyAuthFilter, JwtAuthenticationFilter.class);
         return http.build();
