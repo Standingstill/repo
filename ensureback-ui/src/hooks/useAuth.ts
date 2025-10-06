@@ -14,7 +14,7 @@ import axiosClient, {
 interface SessionState {
   token: string;
   role: string;
-  stripeAccountId: string;
+  stripeAccountId: string | null;
   expiresAt?: number;
 }
 
@@ -64,9 +64,9 @@ const toSessionState = (token: string | null): SessionState | null => {
     return null;
   }
   const role = typeof payload.role === 'string' ? payload.role : '';
-  const stripeAccountId = typeof payload.stripe_account_id === 'string' ? payload.stripe_account_id : '';
+  const stripeAccountId = typeof payload.stripe_account_id === 'string' ? payload.stripe_account_id : null;
   const expiresAt = typeof payload.exp === 'number' ? payload.exp * 1000 : undefined;
-  if (!role || !stripeAccountId) {
+  if (!role) {
     return null;
   }
   return {
