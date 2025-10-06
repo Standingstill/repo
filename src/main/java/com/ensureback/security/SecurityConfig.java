@@ -35,7 +35,8 @@ public class SecurityConfig {
                                 "/api/developer/wizard/stripe/callback",
                                 "/api/developer/docs",
                                 "/ws/**",
-                                "/dev/docs").permitAll()
+                                "/dev/docs",
+                                "/api/merchant/status").permitAll()
                         .requestMatchers(HttpMethod.POST, "/dev/register-keys").authenticated()
                         .requestMatchers("/h2-console/**").permitAll()
                         .anyRequest().authenticated()

@@ -53,15 +53,6 @@ public class MerchantController {
         );
     }
 
-    @GetMapping("/status")
-    @PreAuthorize("hasRole('MERCHANT')")
-    public MerchantStatusResponse status(@AuthenticationPrincipal EnsurebackUserDetails principal) {
-        EnsurebackUserDetails user = requirePrincipal(principal);
-        Merchant merchant = merchantRepository.findByUserId(user.getUserId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Merchant not found"));
-        return new MerchantStatusResponse(merchant.isIntegrated());
-    }
-
     @GetMapping("/orders")
     @PreAuthorize("hasRole('MERCHANT')")
     public List<MerchantOrder> orders(@AuthenticationPrincipal EnsurebackUserDetails principal) {
@@ -204,9 +195,6 @@ public class MerchantController {
                                   String stripeAccountId,
                                   boolean isIntegrated,
                                   OffsetDateTime createdAt) {
-    }
-
-    public record MerchantStatusResponse(boolean isIntegrated) {
     }
 
     public record MerchantOrder(String id,

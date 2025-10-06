@@ -10,15 +10,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 const StripeConnectCallback = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { refreshMerchantStatus, setSessionFromToken } = useAuth();
+  const { checkIntegrationStatus, setSessionFromToken, integrationError } = useAuth();
   const [statusMessage, setStatusMessage] = useState('Finalizing your Stripe connection...');
   const [showRetry, setShowRetry] = useState(false);
   const hasFinalizedRef = useRef(false);
+  const latestIntegrationErrorRef = useRef<string | null>(integrationError);
 
   const searchParams = useMemo(() => {
     const params = new URLSearchParams(location.search ?? window.location.search ?? '');
     return Object.fromEntries(params.entries());
   }, [location.search]);
+
+  useEffect(() => {
+    latestIntegrationErrorRef.current = integrationError;
+  }, [integrationError]);
 
   useEffect(() => {
     if (!searchParams.state) {
@@ -87,24 +92,29 @@ const StripeConnectCallback = () => {
           cleanedRedirect = `${path}${search}${hash}`;
         }
 
-        try {
-          const status = await refreshMerchantStatus();
-          if (status?.isIntegrated) {
-            setStatusMessage('Sending you to your merchant dashboard...');
-            navigate('/merchant/dashboard', { replace: true });
-            return;
-          }
+        const integrationResult = await checkIntegrationStatus({ force: true });
 
-          if (status && !status.isIntegrated) {
-            setStatusMessage("Let's set up your Stripe integration.");
-            navigate('/integration-wizard', {
-              replace: true,
-              state: { showSetupBanner: true, setupMessage: "Let's set up your Stripe integration." },
-            });
-            return;
-          }
-        } catch (statusError) {
-          console.error('Unable to refresh merchant status after Stripe callback', statusError);
+        if (integrationResult === true) {
+          setStatusMessage('Sending you to your merchant dashboard...');
+          navigate('/merchant/dashboard', { replace: true });
+          return;
+        }
+
+        if (integrationResult === false) {
+          setStatusMessage("Let's set up your Stripe integration.");
+          navigate('/integration-wizard', {
+            replace: true,
+            state: { showSetupBanner: true, setupMessage: "Let's set up your Stripe integration." },
+          });
+          return;
+        }
+
+        const latestError = latestIntegrationErrorRef.current;
+        if (latestError) {
+          setStatusMessage(latestError);
+          setShowRetry(true);
+          hasFinalizedRef.current = false;
+          return;
         }
 
         if (cleanedRedirect) {
@@ -144,7 +154,7 @@ const StripeConnectCallback = () => {
     };
 
     void finalize();
-  }, [navigate, refreshMerchantStatus, searchParams, setSessionFromToken]);
+  }, [checkIntegrationStatus, navigate, searchParams, setSessionFromToken]);
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-muted/60 px-4 py-16">

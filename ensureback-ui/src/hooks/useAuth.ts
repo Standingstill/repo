@@ -23,16 +23,7 @@ interface StripeOnboardResponse {
   alreadyConnected: boolean;
 }
 
-interface MerchantStatusResponse {
-  isIntegrated: boolean;
-  stripeAccountId?: string | null;
-}
-
-interface MerchantStatusErrorState {
-  message: string;
-  status?: number;
-  type: 'auth' | 'network' | 'unknown';
-}
+type IntegrationCheckResult = boolean | null;
 
 const decodeJwt = (token: string): Record<string, unknown> | null => {
   try {
@@ -90,23 +81,25 @@ interface UseAuthResult {
   isInitiating: boolean;
   initiateConnect: (returnPath?: string) => Promise<void>;
   logout: () => void;
-  merchantStatus: MerchantStatusResponse | null;
-  isMerchantStatusLoading: boolean;
-  merchantStatusError: MerchantStatusErrorState | null;
-  refreshMerchantStatus: (options?: { bypassManual?: boolean }) => Promise<MerchantStatusResponse | null>;
+  isIntegrated: boolean | null;
+  isCheckingIntegration: boolean;
+  hasCheckedIntegration: boolean;
+  integrationError: string | null;
+  checkIntegrationStatus: (options?: { force?: boolean }) => Promise<IntegrationCheckResult>;
   setSessionFromToken: (token: string) => void;
-  setMerchantStatusManually: (status: MerchantStatusResponse | null) => void;
+  setIntegrationStatusManually: (status: boolean | null) => void;
 }
 
 export const useAuth = (): UseAuthResult => {
   const queryClient = useQueryClient();
   const [session, setSession] = useState<SessionState | null>(getInitialSession);
   const sessionRef = useRef<SessionState | null>(session);
-  const manualMerchantStatusRef = useRef(false);
   const [isInitiating, setIsInitiating] = useState(false);
-  const [merchantStatus, setMerchantStatus] = useState<MerchantStatusResponse | null>(null);
-  const [isMerchantStatusLoading, setIsMerchantStatusLoading] = useState(false);
-  const [merchantStatusError, setMerchantStatusError] = useState<MerchantStatusErrorState | null>(null);
+  const integrationRequestRef = useRef<Promise<IntegrationCheckResult> | null>(null);
+  const [isIntegrated, setIsIntegrated] = useState<boolean | null>(null);
+  const [isCheckingIntegration, setIsCheckingIntegration] = useState(false);
+  const [hasCheckedIntegration, setHasCheckedIntegration] = useState(false);
+  const [integrationError, setIntegrationError] = useState<string | null>(null);
 
   useEffect(() => {
     sessionRef.current = session;
@@ -129,12 +122,18 @@ export const useAuth = (): UseAuthResult => {
       if (nextSession) {
         setSession(nextSession);
         sessionRef.current = nextSession;
-        manualMerchantStatusRef.current = false;
-        setMerchantStatusError(null);
+        integrationRequestRef.current = null;
+        setIsIntegrated(null);
+        setIntegrationError(null);
+        setHasCheckedIntegration(false);
       } else {
         clearStoredToken();
         setSession(null);
         sessionRef.current = null;
+        integrationRequestRef.current = null;
+        setIsIntegrated(null);
+        setIntegrationError(null);
+        setHasCheckedIntegration(false);
       }
 
       shouldReplace = true;
@@ -163,13 +162,23 @@ export const useAuth = (): UseAuthResult => {
         const nextSession = toSessionState(nextToken);
         setSession(nextSession);
         sessionRef.current = nextSession;
-        manualMerchantStatusRef.current = false;
-        setMerchantStatusError(null);
+        integrationRequestRef.current = null;
+        setIsIntegrated(null);
+        setIntegrationError(null);
+        setHasCheckedIntegration(false);
       }
     };
 
     window.addEventListener('storage', handler);
     return () => window.removeEventListener('storage', handler);
+  }, []);
+
+  const resetIntegrationState = useCallback(() => {
+    integrationRequestRef.current = null;
+    setIsIntegrated(null);
+    setHasCheckedIntegration(false);
+    setIntegrationError(null);
+    setIsCheckingIntegration(false);
   }, []);
 
   const setSessionFromToken = useCallback((token: string) => {
@@ -181,8 +190,7 @@ export const useAuth = (): UseAuthResult => {
       clearStoredToken();
       setSession(null);
       sessionRef.current = null;
-      manualMerchantStatusRef.current = false;
-      setMerchantStatusError(null);
+      resetIntegrationState();
       return;
     }
 
@@ -192,106 +200,94 @@ export const useAuth = (): UseAuthResult => {
       clearStoredToken();
       setSession(null);
       sessionRef.current = null;
-      manualMerchantStatusRef.current = false;
-      setMerchantStatusError(null);
+      resetIntegrationState();
       return;
     }
 
     setSession(nextSession);
     sessionRef.current = nextSession;
-    manualMerchantStatusRef.current = false;
-    setMerchantStatusError(null);
-  }, []);
+    resetIntegrationState();
+  }, [resetIntegrationState]);
 
-  const setMerchantStatusManually = useCallback((status: MerchantStatusResponse | null) => {
-    manualMerchantStatusRef.current = Boolean(status);
-    setMerchantStatus(status);
-    setMerchantStatusError(null);
-    setIsMerchantStatusLoading(false);
-  }, []);
+  const setIntegrationStatusManually = useCallback(
+    (status: boolean | null) => {
+      integrationRequestRef.current = null;
+      setIsIntegrated(status);
+      setHasCheckedIntegration(true);
+      setIntegrationError(null);
+      setIsCheckingIntegration(false);
+    },
+    []
+  );
 
-  const refreshMerchantStatus = useCallback(
-    async (options?: { bypassManual?: boolean }): Promise<MerchantStatusResponse | null> => {
+  const checkIntegrationStatus = useCallback(
+    async (options?: { force?: boolean }): Promise<IntegrationCheckResult> => {
+      const force = options?.force ?? false;
       const currentSession = sessionRef.current;
-      const bypassManual = options?.bypassManual ?? false;
 
       if (!currentSession?.token || currentSession.role !== 'MERCHANT') {
-        manualMerchantStatusRef.current = false;
-        setMerchantStatus(null);
-        setMerchantStatusError(null);
-        setIsMerchantStatusLoading(false);
+        integrationRequestRef.current = null;
+        setIsIntegrated(null);
+        setIntegrationError(null);
+        setHasCheckedIntegration(true);
+        setIsCheckingIntegration(false);
         return null;
       }
 
-      if (bypassManual) {
-        manualMerchantStatusRef.current = false;
-        setMerchantStatusError(null);
-      } else if (manualMerchantStatusRef.current) {
-        return merchantStatus;
-      }
-
-      setIsMerchantStatusLoading(true);
-      setMerchantStatusError(null);
-
-      try {
-        const authorization = buildAuthorizationHeader(currentSession.token);
-        const response = await axiosClient.get<MerchantStatusResponse>('/merchant/status', {
-          headers: authorization ? { Authorization: authorization } : undefined,
-        });
-        manualMerchantStatusRef.current = false;
-        setMerchantStatus(response.data);
-        setMerchantStatusError(null);
-        return response.data;
-      } catch (error) {
-        if (isAxiosError(error) && error.response?.status === 404) {
-          const fallbackStatus: MerchantStatusResponse = {
-            isIntegrated: false,
-            stripeAccountId: currentSession.stripeAccountId || null,
-          };
-          manualMerchantStatusRef.current = false;
-          setMerchantStatus(fallbackStatus);
-          setMerchantStatusError(null);
-          return fallbackStatus;
+      if (!force) {
+        if (integrationRequestRef.current) {
+          return integrationRequestRef.current;
         }
 
-        console.error('Unable to load merchant status', error);
-        manualMerchantStatusRef.current = true;
+        if (hasCheckedIntegration) {
+          return isIntegrated;
+        }
+      }
 
-        if (isAxiosError(error)) {
-          const status = error.response?.status;
-          if (status === 401 || status === 403) {
-            setMerchantStatusError({ message: 'Session expired, please reconnect Stripe.', status, type: 'auth' });
-          } else if (!error.response) {
-            setMerchantStatusError({
-              message: 'We are having trouble reaching EnsureBack. Check your connection and try again.',
-              type: 'network',
-            });
+      const request = (async () => {
+        setIsCheckingIntegration(true);
+        try {
+          const response = await axiosClient.get<{ isIntegrated: boolean }>('/merchant/status');
+          const integrated = Boolean(response.data?.isIntegrated);
+          setIsIntegrated(integrated);
+          setIntegrationError(null);
+          return integrated;
+        } catch (error) {
+          console.error('Unable to load merchant integration status', error);
+          if (isAxiosError(error)) {
+            const status = error.response?.status;
+            if (status === 401 || status === 403) {
+              setIntegrationError('Session expired, please reconnect Stripe.');
+              setIsIntegrated(false);
+            } else if (!error.response) {
+              setIntegrationError('We are having trouble reaching EnsureBack. Check your connection and try again.');
+            } else {
+              setIntegrationError('Unable to load merchant status. Please try again later.');
+            }
           } else {
-            setMerchantStatusError({ message: 'Unable to load merchant status. Please try again later.', status, type: 'unknown' });
+            setIntegrationError('Unable to load merchant status. Please try again later.');
           }
-        } else {
-          setMerchantStatusError({ message: 'Unable to load merchant status. Please try again later.', type: 'unknown' });
+          return null;
+        } finally {
+          setHasCheckedIntegration(true);
+          setIsCheckingIntegration(false);
+          integrationRequestRef.current = null;
         }
+      })();
 
-        setMerchantStatus(null);
-        return null;
-      } finally {
-        setIsMerchantStatusLoading(false);
-      }
+      integrationRequestRef.current = request;
+      return request;
     },
-    [merchantStatus]
+    [hasCheckedIntegration, isIntegrated]
   );
 
   const logout = useCallback(() => {
     clearSession();
     setSession(null);
     sessionRef.current = null;
-    manualMerchantStatusRef.current = false;
-    setMerchantStatus(null);
-    setMerchantStatusError(null);
-    setIsMerchantStatusLoading(false);
+    resetIntegrationState();
     queryClient.clear();
-  }, [queryClient]);
+  }, [queryClient, resetIntegrationState]);
 
   const initiateConnect = useCallback(async (returnPath = '/dashboard') => {
     if (typeof window === 'undefined') {
@@ -318,16 +314,15 @@ export const useAuth = (): UseAuthResult => {
   }, []);
 
   useEffect(() => {
-    if (session?.token && session.role === 'MERCHANT') {
-      void refreshMerchantStatus({ bypassManual: false }).catch(() => {});
+    if (!session?.token || session.role !== 'MERCHANT') {
+      resetIntegrationState();
       return;
     }
 
-    manualMerchantStatusRef.current = false;
-    setMerchantStatus(null);
-    setMerchantStatusError(null);
-    setIsMerchantStatusLoading(false);
-  }, [refreshMerchantStatus, session?.role, session?.token]);
+    if (!hasCheckedIntegration && !isCheckingIntegration) {
+      void checkIntegrationStatus().catch(() => undefined);
+    }
+  }, [checkIntegrationStatus, hasCheckedIntegration, isCheckingIntegration, resetIntegrationState, session?.role, session?.token]);
 
   const isAuthenticated = Boolean(session?.token && (!session.expiresAt || session.expiresAt > Date.now()));
 
@@ -340,24 +335,26 @@ export const useAuth = (): UseAuthResult => {
       isInitiating,
       initiateConnect,
       logout,
-      merchantStatus,
-      isMerchantStatusLoading,
-      merchantStatusError,
-      refreshMerchantStatus,
+      isIntegrated,
+      isCheckingIntegration,
+      hasCheckedIntegration,
+      integrationError,
+      checkIntegrationStatus,
       setSessionFromToken,
-      setMerchantStatusManually,
+      setIntegrationStatusManually,
     }),
     [
       initiateConnect,
       isAuthenticated,
       isInitiating,
       logout,
-      merchantStatus,
-      isMerchantStatusLoading,
-      merchantStatusError,
-      refreshMerchantStatus,
+      isIntegrated,
+      isCheckingIntegration,
+      hasCheckedIntegration,
+      integrationError,
+      checkIntegrationStatus,
       setSessionFromToken,
-      setMerchantStatusManually,
+      setIntegrationStatusManually,
       session?.role,
       session?.stripeAccountId,
       session?.token,
