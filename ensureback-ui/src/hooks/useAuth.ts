@@ -97,6 +97,7 @@ export const useAuth = (): UseAuthResult => {
   const [isInitiating, setIsInitiating] = useState(false);
   const integrationRequestRef = useRef<Promise<IntegrationCheckResult> | null>(null);
   const [isIntegrated, setIsIntegrated] = useState<boolean | null>(null);
+  const [hasCookieSession, setHasCookieSession] = useState<boolean>(false);
   const [isCheckingIntegration, setIsCheckingIntegration] = useState(false);
   const [hasCheckedIntegration, setHasCheckedIntegration] = useState(false);
   const [integrationError, setIntegrationError] = useState<string | null>(null);
@@ -223,16 +224,6 @@ export const useAuth = (): UseAuthResult => {
   const checkIntegrationStatus = useCallback(
     async (options?: { force?: boolean }): Promise<IntegrationCheckResult> => {
       const force = options?.force ?? false;
-      const currentSession = sessionRef.current;
-
-      if (!currentSession?.token || currentSession.role !== 'MERCHANT') {
-        integrationRequestRef.current = null;
-        setIsIntegrated(null);
-        setIntegrationError(null);
-        setHasCheckedIntegration(true);
-        setIsCheckingIntegration(false);
-        return null;
-      }
 
       if (!force) {
         if (integrationRequestRef.current) {
@@ -247,10 +238,11 @@ export const useAuth = (): UseAuthResult => {
       const request = (async () => {
         setIsCheckingIntegration(true);
         try {
-          const response = await axiosClient.get<{ isIntegrated: boolean }>('/merchant/status');
-          const integrated = Boolean(response.data?.isIntegrated);
+          const response = await axiosClient.get<{ complete: boolean } & Record<string, unknown>>('/developer/wizard/status');
+          const integrated = Boolean(response.data?.complete);
           setIsIntegrated(integrated);
           setIntegrationError(null);
+          setHasCookieSession(true);
           return integrated;
         } catch (error) {
           console.error('Unable to load merchant integration status', error);
@@ -289,7 +281,7 @@ export const useAuth = (): UseAuthResult => {
     queryClient.clear();
   }, [queryClient, resetIntegrationState]);
 
-  const initiateConnect = useCallback(async (returnPath = '/dashboard') => {
+  const initiateConnect = useCallback(async (returnPath = '/integration-wizard') => {
     if (typeof window === 'undefined') {
       return;
     }
@@ -314,17 +306,13 @@ export const useAuth = (): UseAuthResult => {
   }, []);
 
   useEffect(() => {
-    if (!session?.token || session.role !== 'MERCHANT') {
-      resetIntegrationState();
-      return;
-    }
-
+    // Always attempt to determine integration status; backend will use HttpOnly cookie if present.
     if (!hasCheckedIntegration && !isCheckingIntegration) {
       void checkIntegrationStatus().catch(() => undefined);
     }
-  }, [checkIntegrationStatus, hasCheckedIntegration, isCheckingIntegration, resetIntegrationState, session?.role, session?.token]);
+  }, [checkIntegrationStatus, hasCheckedIntegration, isCheckingIntegration]);
 
-  const isAuthenticated = Boolean(session?.token && (!session.expiresAt || session.expiresAt > Date.now()));
+  const isAuthenticated = Boolean((session?.token && (!session.expiresAt || session.expiresAt > Date.now())) || hasCookieSession);
 
   return useMemo(
     () => ({
@@ -358,6 +346,7 @@ export const useAuth = (): UseAuthResult => {
       session?.role,
       session?.stripeAccountId,
       session?.token,
+      hasCookieSession,
     ]
   );
 };

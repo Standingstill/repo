@@ -2,6 +2,7 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import NavBar from '@/components/NavBar';
+import { ToastProvider } from '@/components/ui/toast';
 import { useAuth } from '@/hooks/useAuth';
 import BuyerDashboard from '@/pages/dashboard/buyer';
 import AdminDashboard from '@/pages/dashboard/admin';
@@ -12,10 +13,17 @@ import StripeConnectCallback from '@/pages/StripeConnectCallback';
 import { IntegrationWizardGuard, MerchantGate, RequireMerchantIntegration } from '@/routes/MerchantStatusGates';
 
 const ProtectedRoute = ({ children }: { children: ReactElement }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, hasCheckedIntegration, isCheckingIntegration, checkIntegrationStatus } = useAuth();
   const location = useLocation();
 
   if (!isAuthenticated) {
+    if (!hasCheckedIntegration && !isCheckingIntegration) {
+      void checkIntegrationStatus().catch(() => undefined);
+      return <div className="p-6 text-center text-sm text-muted-foreground">Preparing your session...</div>;
+    }
+    if (isCheckingIntegration) {
+      return <div className="p-6 text-center text-sm text-muted-foreground">Preparing your session...</div>;
+    }
     return <Navigate to="/" replace state={{ from: location }} />;
   }
 
@@ -25,8 +33,9 @@ const ProtectedRoute = ({ children }: { children: ReactElement }) => {
 const App = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <NavBar />
-      <Routes>
+      <ToastProvider>
+        <NavBar />
+        <Routes>
         <Route path="/" element={<Landing />} />
         <Route
           path="/developer"
@@ -76,7 +85,8 @@ const App = () => {
           }
         />
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+        </Routes>
+      </ToastProvider>
     </div>
   );
 };

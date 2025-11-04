@@ -11,7 +11,7 @@ const Landing = () => {
   const { initiateConnect, isInitiating } = useAuth();
 
   const handleGetStarted = useCallback(() => {
-    void initiateConnect('/dashboard').catch((error) => {
+    void initiateConnect('/integration-wizard').catch((error) => {
       console.error('Unable to start Stripe Connect onboarding', error);
     });
   }, [initiateConnect]);

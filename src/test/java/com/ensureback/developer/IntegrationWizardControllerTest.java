@@ -90,12 +90,17 @@ class IntegrationWizardControllerTest {
         String createResponse = mockMvc.perform(post("/api/developer/wizard/api-keys").param("merchantId", merchantId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.apiKey.apiKey").isString())
+                .andExpect(jsonPath("$.apiKey.signingSecret").isString())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
 
         JsonNode createdNode = objectMapper.readTree(createResponse);
         String apiKeyId = createdNode.get("apiKey").get("id").asText();
+
+        // DB row stores non-null signing secret
+        ApiKey created = apiKeyRepository.findById(UUID.fromString(apiKeyId)).orElseThrow();
+        assertThat(created.getSigningSecret()).isNotBlank();
 
         mockMvc.perform(get("/api/developer/wizard/api-keys").param("merchantId", merchantId))
                 .andExpect(status().isOk())
@@ -160,7 +165,7 @@ class IntegrationWizardControllerTest {
     @Test
     void stripeCallbackMarksChecklistConnected() throws Exception {
         when(stripeConnectService.completeOnboarding(any(), any(), any(), any()))
-                .thenReturn(new StripeConnectService.CallbackResult(URI.create("https://app.ensureback.test"), true, merchant.getUser().getStripeAccountId()));
+                .thenReturn(new StripeConnectService.CallbackResult(URI.create("https://app.ensureback.test"), true, merchant.getUser().getStripeAccountId(), "test-jwt-token"));
 
         mockMvc.perform(get("/api/developer/wizard/stripe/callback")
                         .param("state", UUID.randomUUID().toString())
@@ -177,6 +182,7 @@ class IntegrationWizardControllerTest {
         apiKey.setId(UUID.randomUUID());
         apiKey.setMerchant(merchant);
         apiKey.setKeyHash(hashSha256(rawKey));
+        apiKey.setSigningSecret("test-signing-secret");
         apiKey.setRevoked(false);
         apiKey.setCreatedAt(OffsetDateTime.now());
         apiKeyRepository.save(apiKey);

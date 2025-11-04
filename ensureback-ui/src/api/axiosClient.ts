@@ -62,12 +62,22 @@ export const clearStoredToken = (): void => {
 
 const axiosClient = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: false,
+  withCredentials: true,
 });
 
+const readCookieToken = (): string | null => {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|; )EB_AUTH=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+};
+
 axiosClient.interceptors.request.use((config) => {
-  const token = readStoredToken();
-  const authorization = buildAuthorizationHeader(token);
+  let token = readStoredToken();
+  let authorization = buildAuthorizationHeader(token);
+  if (!authorization) {
+    token = readCookieToken();
+    authorization = buildAuthorizationHeader(token);
+  }
   if (authorization) {
     config.headers = config.headers ?? {};
     config.headers.Authorization = authorization;

@@ -4,6 +4,7 @@ import com.ensureback.security.ApiKeyAuthenticationToken;
 import com.ensureback.security.EnsurebackUserDetails;
 import com.ensureback.user.User;
 import com.ensureback.user.UserRepository;
+import com.ensureback.merchant.MerchantRepository;
 import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -24,9 +25,11 @@ public class MerchantStatusController {
     private static final Logger log = LoggerFactory.getLogger(MerchantStatusController.class);
 
     private final UserRepository userRepository;
+    private final MerchantRepository merchantRepository;
 
-    public MerchantStatusController(UserRepository userRepository) {
+    public MerchantStatusController(UserRepository userRepository, MerchantRepository merchantRepository) {
         this.userRepository = userRepository;
+        this.merchantRepository = merchantRepository;
     }
 
     @GetMapping("/status")
@@ -40,7 +43,8 @@ public class MerchantStatusController {
         boolean integrated = userOptional
                 .map(User::getStripeAccountId)
                 .filter(StringUtils::hasText)
-                .isPresent();
+                .map(stripeId -> merchantRepository.findByStripeAccountId(stripeId).isPresent())
+                .orElse(false);
 
         log.info("Merchant status request for principal '{}' resolved to integrated={}",
                 authentication.getName(), integrated);

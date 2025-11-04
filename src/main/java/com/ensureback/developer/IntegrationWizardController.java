@@ -13,12 +13,18 @@ import com.ensureback.merchant.MerchantRepository;
 import com.ensureback.security.ApiKeyAuthenticationToken;
 import com.ensureback.security.EnsurebackUserDetails;
 import com.ensureback.user.User;
+import com.ensureback.user.UserRepository;
+import com.ensureback.security.JwtTokenService;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import com.stripe.exception.StripeException;
 import jakarta.annotation.security.PermitAll;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -37,13 +43,21 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/developer/wizard")
 public class IntegrationWizardController {
 
+    private static final Logger log = LoggerFactory.getLogger(IntegrationWizardController.class);
+
     private final IntegrationWizardService integrationWizardService;
     private final MerchantRepository merchantRepository;
+    private final UserRepository userRepository;
+    private final JwtTokenService jwtTokenService;
 
     public IntegrationWizardController(IntegrationWizardService integrationWizardService,
-                                       MerchantRepository merchantRepository) {
+                                       MerchantRepository merchantRepository,
+                                       UserRepository userRepository,
+                                       JwtTokenService jwtTokenService) {
         this.integrationWizardService = integrationWizardService;
         this.merchantRepository = merchantRepository;
+        this.userRepository = userRepository;
+        this.jwtTokenService = jwtTokenService;
     }
 
     @GetMapping("/status")
@@ -80,7 +94,7 @@ public class IntegrationWizardController {
     }
 
     @DeleteMapping("/api-keys/{apiKeyId}")
-    @PreAuthorize("hasAnyRole('MERCHANT','ADMIN')")
+    @PreAuthorize("hasAnyRole('MERCHANT','ADMIN','API_KEY')")
     public IntegrationWizardStatusResponse revokeApiKey(@AuthenticationPrincipal EnsurebackUserDetails principal,
                                                         @PathVariable UUID apiKeyId,
                                                         @RequestParam(value = "merchantId", required = false) UUID merchantId) {
@@ -89,7 +103,7 @@ public class IntegrationWizardController {
     }
 
     @PostMapping("/webhook/register")
-    @PreAuthorize("hasAnyRole('MERCHANT','ADMIN')")
+    @PreAuthorize("hasAnyRole('MERCHANT','ADMIN','API_KEY')")
     public IntegrationWizardStatusResponse registerWebhook(@AuthenticationPrincipal EnsurebackUserDetails principal,
                                                            @RequestParam(value = "merchantId", required = false) UUID merchantId,
                                                            @Valid @RequestBody WebhookRegisterRequest request) {
@@ -98,7 +112,7 @@ public class IntegrationWizardController {
     }
 
     @GetMapping("/webhook/test")
-    @PreAuthorize("hasAnyRole('MERCHANT','ADMIN')")
+    @PreAuthorize("hasAnyRole('MERCHANT','ADMIN','API_KEY')")
     public WebhookTestResult sendTest(@AuthenticationPrincipal EnsurebackUserDetails principal,
                                       @RequestParam(value = "merchantId", required = false) UUID merchantId) {
         UUID resolvedMerchant = resolveMerchantId(principal, merchantId);
@@ -126,7 +140,14 @@ public class IntegrationWizardController {
     private UUID resolveMerchantId(EnsurebackUserDetails principal, UUID requestedMerchantId) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication instanceof ApiKeyAuthenticationToken apiKeyAuth) {
-            return apiKeyAuth.getMerchantId();
+            UUID merchantId = apiKeyAuth.getMerchantId();
+            if (requestedMerchantId != null && !requestedMerchantId.equals(merchantId)) {
+                throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Merchant context mismatch");
+            }
+            if (log.isDebugEnabled()) {
+                log.debug("Resolved merchant via API key: merchantId={}", merchantId);
+            }
+            return merchantId;
         }
         if (principal == null) {
             throw new IllegalStateException("Authenticated user required");
@@ -136,10 +157,50 @@ public class IntegrationWizardController {
             if (requestedMerchantId == null) {
                 throw new IllegalArgumentException("merchantId required for admin operations");
             }
+            if (log.isDebugEnabled()) {
+                log.debug("Resolved merchant via ADMIN principal: merchantId={}", requestedMerchantId);
+            }
             return requestedMerchantId;
         }
-        return merchantRepository.findByUserId(user.getId())
+        UUID resolved = merchantRepository.findByUserId(user.getId())
                 .map(Merchant::getId)
                 .orElseThrow(() -> new IllegalArgumentException("Merchant not found for user"));
+        if (log.isDebugEnabled()) {
+            log.debug("Resolved merchant via MERCHANT principal: merchantId={}", resolved);
+        }
+        return resolved;
     }
+
+   /* private UUID resolveMerchantIdWithCookieFallback(EnsurebackUserDetails principal, UUID requestedMerchantId, HttpServletRequest request) {
+        try {
+            return resolveMerchantId(principal, requestedMerchantId);
+        } catch (IllegalStateException ex) {
+            // Try EB_AUTH cookie-based resolution if principal not injected
+            if (request != null && request.getCookies() != null) {
+                for (Cookie c : request.getCookies()) {
+                    if ("EB_AUTH".equals(c.getName())) {
+                        try {
+                            var decoded = jwtTokenService.verify(c.getValue());
+                            JwtTokenService.JwtPayload payload = jwtTokenService.toPayload(decoded);
+                            UUID userId = payload.userId();
+                            User user = userRepository.findById(userId).orElse(null);
+                            if (user == null) break;
+                            if (user.getRole() == User.Role.ADMIN) {
+                                if (requestedMerchantId == null) {
+                                    throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED, "merchantId required for admin operations");
+                                }
+                                return requestedMerchantId;
+                            }
+                            return merchantRepository.findByUserId(user.getId())
+                                    .map(Merchant::getId)
+                                    .orElseThrow(() -> new IllegalArgumentException("Merchant not found for user"));
+                        } catch (Exception ignored) {
+                            break;
+                        }
+                    }
+                }
+            }
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Session expired or missing");
+        }
+    }*/
 }

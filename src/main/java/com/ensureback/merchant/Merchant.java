@@ -46,7 +46,7 @@ public class Merchant {
     @OneToOne(mappedBy = "merchant", fetch = FetchType.LAZY)
     private IntegrationChecklist integrationChecklist;
 
-    protected Merchant() {
+    public Merchant() {
         // JPA
     }
 

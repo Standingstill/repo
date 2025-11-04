@@ -1,0 +1,8 @@
+*** Begin Patch
+*** Update File: src/main/resources/db/migration/V18__merchant_stripe_unique_index.sql
+@@
+-CREATE UNIQUE INDEX IF NOT EXISTS uq_merchants_stripe_account
+-    ON merchants (NULLIF(stripe_account_id, ''));
++CREATE UNIQUE INDEX IF NOT EXISTS uq_merchants_stripe_account
++    ON merchants ((NULLIF(stripe_account_id, '')));
+*** End Patch

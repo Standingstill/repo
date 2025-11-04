@@ -42,7 +42,17 @@ public class MerchantController {
     public MerchantProfile me(@AuthenticationPrincipal EnsurebackUserDetails principal) {
         EnsurebackUserDetails user = requirePrincipal(principal);
         Merchant merchant = merchantRepository.findByUserId(user.getUserId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Merchant not found"));
+                .or(() -> merchantRepository.findByStripeAccountId(user.getUser().getStripeAccountId()))
+                .orElseGet(() -> {
+                    Merchant m = new Merchant();
+                    m.setId(UUID.randomUUID());
+                    m.setUser(user.getUser());
+                    m.setStripeAccountId(user.getUser().getStripeAccountId());
+                    m.setBusinessName("New Merchant");
+                    m.setSupportEmail("support@merchant.local");
+                    m.setDisputeWindowHours(120);
+                    return merchantRepository.save(m);
+                });
         return new MerchantProfile(
                 merchant.getId(),
                 user.getUsername(),
@@ -87,6 +97,29 @@ public class MerchantController {
                 .findFirst()
                 .orElse("usd");
         return new MerchantBalance(escrow, available, currency);
+    }
+
+    @GetMapping("/policies")
+    @PreAuthorize("hasRole('MERCHANT')")
+    public MerchantPolicies policies(@AuthenticationPrincipal EnsurebackUserDetails principal) {
+        EnsurebackUserDetails user = requirePrincipal(principal);
+        Merchant merchant = merchantRepository.findByUserId(user.getUserId()).orElse(null);
+
+        int window = 72;
+        String supportEmail = "support@ensureback.example";
+        if (merchant != null) {
+            if (merchant.getDisputeWindowHours() != null) {
+                window = merchant.getDisputeWindowHours();
+            }
+            if (StringUtils.hasText(merchant.getSupportEmail())) {
+                supportEmail = merchant.getSupportEmail();
+            }
+        }
+
+        String refundPolicy = "Refunds are accepted within " + window + " hours of delivery if the item is unopened or defective.";
+        String cancellationPolicy = "Orders can be cancelled any time before fulfillment. Contact support if already shipped.";
+
+        return new MerchantPolicies(window, refundPolicy, cancellationPolicy, supportEmail);
     }
 
     private List<MerchantOrder> loadOrders(EnsurebackUserDetails principal) {
@@ -215,5 +248,11 @@ public class MerchantController {
     public record MerchantBalance(long escrow,
                                   long available,
                                   String currency) {
+    }
+
+    public record MerchantPolicies(int disputeWindowHours,
+                                   String refundPolicy,
+                                   String cancellationPolicy,
+                                   String supportEmail) {
     }
 }

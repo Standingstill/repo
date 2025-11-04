@@ -7,6 +7,7 @@ public record StripeCallbackResponse(
         boolean integrated,
         String nextStep,
         String message,
-        String redirectUrl
+        String redirectUrl,
+        String token
 ) {
 }

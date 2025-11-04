@@ -2,6 +2,10 @@ package com.ensureback.auth;
 
 import com.ensureback.config.EnsurebackProperties;
 import com.ensureback.security.JwtTokenService;
+import com.ensureback.merchant.Merchant;
+import com.ensureback.merchant.MerchantRepository;
+import com.ensureback.developer.IntegrationChecklist;
+import com.ensureback.developer.IntegrationChecklistRepository;
 import com.ensureback.stripe.StripeProperties;
 import com.ensureback.user.User;
 import com.ensureback.user.UserRepository;
@@ -39,6 +43,8 @@ public class StripeConnectService {
     private final StripeConnectSessionRepository sessionRepository;
     private final UserRepository userRepository;
     private final JwtTokenService jwtTokenService;
+    private final MerchantRepository merchantRepository;
+    private final IntegrationChecklistRepository integrationChecklistRepository;
     private final StripeProperties stripeProperties;
     private final EnsurebackProperties ensurebackProperties;
 
@@ -46,18 +52,22 @@ public class StripeConnectService {
                                 UserRepository userRepository,
                                 JwtTokenService jwtTokenService,
                                 StripeProperties stripeProperties,
-                                EnsurebackProperties ensurebackProperties) {
+                                EnsurebackProperties ensurebackProperties,
+                                MerchantRepository merchantRepository,
+                                IntegrationChecklistRepository integrationChecklistRepository) {
         this.sessionRepository = sessionRepository;
         this.userRepository = userRepository;
         this.jwtTokenService = jwtTokenService;
         this.stripeProperties = stripeProperties;
         this.ensurebackProperties = ensurebackProperties;
+        this.merchantRepository = merchantRepository;
+        this.integrationChecklistRepository = integrationChecklistRepository;
     }
 
     public record OnboardingRedirect(URI redirectUri, UUID state, boolean alreadyConnected) {
     }
 
-    public record CallbackResult(URI redirectUri, boolean connected, String stripeAccountId) {
+    public record CallbackResult(URI redirectUri, boolean connected, String stripeAccountId, String token) {
     }
 
     public OnboardingRedirect initiateOnboarding(UUID userId, String requestedReturnPath) {
@@ -141,7 +151,7 @@ public class StripeConnectService {
                     error,
                     Optional.ofNullable(errorDescription).orElse(error)
             );
-            return new CallbackResult(redirectUri, StringUtils.hasText(existingAccountId), existingAccountId);
+            return new CallbackResult(redirectUri, StringUtils.hasText(existingAccountId), existingAccountId, null);
         }
 
         String authorizationCode = Optional.ofNullable(code)
@@ -181,10 +191,52 @@ public class StripeConnectService {
 
         sessionRepository.delete(session);
 
+        Merchant merchant = ensureMerchantFor(user, stripeAccountId);
+        markStripeConnected(merchant);
+        log.info("Linked merchant {} to user {}", merchant.getId(), user.getId());
+
         JwtTokenService.Token token = jwtTokenService.createToken(user);
         URI redirectUri = buildAppRedirect(normalizedReturnPath, token.value(), stripeAccountId, null, null);
         log.info("Stripe Connect onboarding completed for user {} with account {}", user.getId(), stripeAccountId);
-        return new CallbackResult(redirectUri, true, stripeAccountId);
+        return new CallbackResult(redirectUri, true, stripeAccountId, token.value());
+    }
+
+    private Merchant ensureMerchantFor(User user, String stripeAccountId) {
+        return merchantRepository.findByUserId(user.getId())
+                .or(() -> merchantRepository.findByStripeAccountId(stripeAccountId))
+                .orElseGet(() -> {
+                    Merchant m = new Merchant();
+                    m.setId(UUID.randomUUID());
+                    m.setUser(user);
+                    m.setStripeAccountId(stripeAccountId);
+                    if (m.getBusinessName() == null || m.getBusinessName().isBlank()) {
+                        m.setBusinessName("New Merchant");
+                    }
+                    if (m.getSupportEmail() == null || m.getSupportEmail().isBlank()) {
+                        m.setSupportEmail("support@merchant.local");
+                    }
+                    m.setDisputeWindowHours(120);
+                    return merchantRepository.save(m);
+                });
+    }
+
+    private void markStripeConnected(Merchant merchant) {
+        IntegrationChecklist checklist = integrationChecklistRepository.findByMerchantId(merchant.getId())
+                .orElseGet(() -> {
+                    IntegrationChecklist ic = new IntegrationChecklist();
+                    ic.setId(UUID.randomUUID());
+                    ic.setMerchant(merchant);
+                    ic.setStripeConnected(false);
+                    ic.setWebhookRegistered(false);
+                    ic.setTestChargePassed(false);
+                    ic.setUpdatedAt(OffsetDateTime.now());
+                    return integrationChecklistRepository.save(ic);
+                });
+        if (!checklist.isStripeConnected()) {
+            checklist.setStripeConnected(true);
+            checklist.setUpdatedAt(OffsetDateTime.now());
+            integrationChecklistRepository.save(checklist);
+        }
     }
 
     private TokenResponse exchangeAuthorizationCode(String code) throws StripeException {

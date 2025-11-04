@@ -106,6 +106,7 @@ public class IntegrationWizardService {
 
         String rawKey = generateRawKey();
         String keyHash = hashSha256(rawKey);
+        String signingSecret = generateSigningSecret();
 
         ApiKey apiKey = new ApiKey();
         apiKey.setId(UUID.randomUUID());
@@ -113,6 +114,7 @@ public class IntegrationWizardService {
         apiKey.setKeyHash(keyHash);
         apiKey.setRevoked(false);
         apiKey.setCreatedAt(OffsetDateTime.now());
+        apiKey.setSigningSecret(signingSecret);
         apiKeyRepository.save(apiKey);
 
         checklist.setUpdatedAt(OffsetDateTime.now());
@@ -120,7 +122,7 @@ public class IntegrationWizardService {
 
         log.info("Generated API key {} for merchant {}", apiKey.getId(), merchantId);
 
-        ApiKeyCreateResponse response = new ApiKeyCreateResponse(apiKey.getId(), rawKey, apiKey.getCreatedAt());
+        ApiKeyCreateResponse response = new ApiKeyCreateResponse(apiKey.getId(), rawKey, signingSecret, apiKey.getCreatedAt());
         IntegrationWizardStatusResponse status = buildStatus(merchant, checklist);
         return new ApiKeyCreateResult(response, status);
     }
@@ -267,7 +269,7 @@ public class IntegrationWizardService {
             message = "Your Stripe account is connected. Please complete integration setup.";
         }
         String redirectUrl = callback.redirectUri() != null ? callback.redirectUri().toString() : null;
-        return new StripeCallbackResponse(callback.connected(), stripeAccountId, checklistUpdated, integrated, nextStep, message, redirectUrl);
+        return new StripeCallbackResponse(callback.connected(), stripeAccountId, checklistUpdated, integrated, nextStep, message, redirectUrl, callback.token());
     }
 
     private Merchant loadMerchant(UUID merchantId) {
@@ -394,11 +396,17 @@ public class IntegrationWizardService {
     private Optional<String> resolveSigningSecret(UUID merchantId) {
         return apiKeyRepository.findByMerchant_IdAndRevokedFalse(merchantId).stream()
                 .sorted(Comparator.comparing(ApiKey::getCreatedAt).reversed())
-                .map(ApiKey::getKeyHash)
+                .map(ApiKey::getSigningSecret)
                 .findFirst();
     }
 
     private String generateRawKey() {
+        byte[] bytes = new byte[32];
+        secureRandom.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private String generateSigningSecret() {
         byte[] bytes = new byte[32];
         secureRandom.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);

@@ -33,6 +33,10 @@ public class ApiKey {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
+    // TODO: Encrypt at rest using KMS or a Crypto util.
+    @Column(name = "signing_secret")
+    private String signingSecret;
+
     public ApiKey() {
         // JPA
     }
@@ -82,5 +86,13 @@ public class ApiKey {
 
     public void setCreatedAt(OffsetDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getSigningSecret() {
+        return signingSecret;
+    }
+
+    public void setSigningSecret(String signingSecret) {
+        this.signingSecret = signingSecret;
     }
 }

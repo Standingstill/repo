@@ -49,9 +49,14 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         String signature = request.getHeader(HEADER_SIGNATURE);
         String timestampHeader = request.getHeader(HEADER_TIMESTAMP);
 
-        if (!StringUtils.hasText(keyIdHeader) || !StringUtils.hasText(rawKey)
-                || !StringUtils.hasText(signature) || !StringUtils.hasText(timestampHeader)) {
-            unauthorized(response);
+        // Only attempt API key auth if all required headers are present.
+        // Otherwise, fall through so other auth mechanisms (e.g., JWT cookie/header) can authenticate.
+        boolean hasAllHeaders = StringUtils.hasText(keyIdHeader)
+                && StringUtils.hasText(rawKey)
+                && StringUtils.hasText(signature)
+                && StringUtils.hasText(timestampHeader);
+        if (!hasAllHeaders) {
+            filterChain.doFilter(request, response);
             return;
         }
 
@@ -73,7 +78,9 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        SecurityContextHolder.getContext().setAuthentication(authentication.get());
+        ApiKeyAuthenticationToken authToken = authentication.get();
+        authToken.setDetails(authToken.getMerchantId());
+        SecurityContextHolder.getContext().setAuthentication(authToken);
         filterChain.doFilter(request, response);
     }
 
@@ -85,6 +92,11 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         if (!path.startsWith("/api/developer/")) {
             return false;
         }
+        // Apply to developer wizard endpoints
+        if (path.startsWith("/api/developer/wizard/")) {
+            return true;
+        }
+        // Backward-compat: specific status endpoint (if any)
         return path.startsWith("/api/developer/status");
     }
 

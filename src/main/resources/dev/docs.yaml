@@ -4,15 +4,27 @@ info:
   version: 1.0.0
   description: |
     The Integration Wizard guides merchants and developers through onboarding EnsureBack.
-    Authenticate every request with either a merchant JWT (`Authorization: Bearer <token>`) or an API key signature.
+    Authenticate every request with either a merchant JWT (`Authorization: Bearer <token>`) or an API key.
 
-    ### API key authentication
-    1. Build the canonical request string: `<HTTP_METHOD>\n<PATH>\n<ISO8601_TIMESTAMP>\n<body>` (omit body for GET).
-    2. Compute `signature = Base64(HMAC_SHA256(rawApiKey, canonicalRequest))`.
-    3. Send headers:
-       - `Authorization: Bearer <api_key_id>`
-       - `ensureback-signature: <signature>`
-       - `ensureback-timestamp: <ISO8601_TIMESTAMP>`
+    ### API key authentication (for API calls)
+    Use these headers for requests to `/api/developer/wizard/**` when authenticating with an API key:
+
+    - `X-EB-API-KEY-ID`: the API key UUID
+    - `X-EB-API-KEY`: the API key (raw, plaintext shown once on creation)
+    - `X-EB-API-TIMESTAMP`: ISO-8601 instant (e.g. `2025-11-01T12:00:00Z`)
+    - `X-EB-API-SIGNATURE`: `Base64(HMAC_SHA256(rawApiKey, canonical))`
+
+    Build canonical as: `"<timestamp>:<HTTP_METHOD>:<REQUEST_URI>:"` (note trailing colon; no body included)
+
+    Additional rules:
+    - Clock skew window: ±5 minutes.
+    - Do not send the Signing Secret here — that is only for verifying webhooks.
+
+    ### Webhook signatures (from EnsureBack to you)
+    Webhooks are signed with the Signing Secret (different from the API key). To verify:
+      1. Build the canonical request string your endpoint expects (see server docs) and
+      2. Compute `signature = Base64(HMAC_SHA256(signingSecret, canonical))`.
+      3. Compare with the signature header delivered with the webhook.
 servers:
   - url: https://api.ensureback.local
 paths:
@@ -304,6 +316,9 @@ components:
         apiKey:
           type: string
           description: Plaintext secret. Display once.
+        signingSecret:
+          type: string
+          description: Webhook signing secret. Display once. Different from the API key used for auth.
         createdAt:
           type: string
           format: date-time

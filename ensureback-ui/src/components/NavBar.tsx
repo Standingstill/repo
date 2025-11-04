@@ -9,12 +9,12 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   cn('text-sm font-medium text-muted-foreground transition-colors hover:text-foreground', isActive && 'text-foreground');
 
 const NavBar = () => {
-  const { isAuthenticated, isInitiating, initiateConnect, logout } = useAuth();
+  const { isAuthenticated, isInitiating, initiateConnect, logout, isIntegrated, hasCheckedIntegration } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const handleConnect = () => {
-    void initiateConnect(location.pathname).catch((error) => {
+    void initiateConnect('/integration-wizard').catch((error) => {
       console.error('Unable to start Stripe Connect onboarding', error);
     });
   };
@@ -52,6 +52,11 @@ const NavBar = () => {
           <NavLink to="/status" className={navLinkClass}>
             Status
           </NavLink>
+          {isAuthenticated && hasCheckedIntegration && isIntegrated === false && (
+            <NavLink to="/integration-wizard" className={navLinkClass}>
+              Integration Wizard
+            </NavLink>
+          )}
           {isAuthenticated && (
             <NavLink to="/merchant/dashboard" className={navLinkClass} end>
               Merchant
